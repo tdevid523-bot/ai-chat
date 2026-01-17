@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 随身聊 Pro+</title>
+    <title>AI 随身聊 Pro</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -12,17 +12,8 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
         body { background-color: #f3f4f6; overscroll-behavior: none; }
         .message-content { white-space: pre-wrap; word-break: break-word; }
-        .mobile-height { height: 100dvh; }
-        
-        /* 记忆卡片样式 */
-        .memory-card {
-            transition: all 0.2s;
-            border-left: 4px solid transparent;
-        }
-        .memory-card:hover {
-            border-left-color: #4f46e5; /* indigo-600 */
-            background-color: #f8fafc;
-        }
+        /* 移动端优化 */
+        .mobile-height { height: 100dvh; } 
     </style>
 </head>
 <body>
@@ -37,15 +28,15 @@
             </div>
             
             <div class="p-3 bg-slate-800 border-b border-slate-700">
-                <button @click="openPublicMemory" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded text-sm flex items-center justify-center gap-2 shadow-lg">
-                    <i class="fa-solid fa-layer-group"></i> 管理公共记忆库
+                <button @click="openPublicMemory" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded text-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-brain"></i> 编辑公共记忆库
                 </button>
             </div>
 
             <div class="flex-1 overflow-y-auto p-2">
                 <div v-for="(contact, index) in contacts" :key="contact.id" 
                      @click="selectContact(index)"
-                     :class="['p-3 rounded-lg mb-2 cursor-pointer flex justify-between items-center group relative transition', currentContactIndex === index ? 'bg-blue-600' : 'hover:bg-slate-700']">
+                     :class="['p-3 rounded-lg mb-2 cursor-pointer flex justify-between items-center group relative', currentContactIndex === index ? 'bg-blue-600' : 'hover:bg-slate-700']">
                     <div class="truncate pr-6">
                         <div class="font-bold text-sm">{{ contact.name }}</div>
                         <div class="text-xs text-slate-300 truncate">{{ contact.config.model }}</div>
@@ -127,43 +118,17 @@
         </div>
 
         <div v-if="showPublicMemoryModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-            <div class="bg-white rounded-xl w-full max-w-md flex flex-col h-[80vh] shadow-2xl overflow-hidden">
-                <div class="p-4 border-b flex justify-between items-center bg-gray-50">
-                    <div>
-                        <h3 class="font-bold text-lg text-indigo-700">公共记忆库</h3>
-                        <p class="text-xs text-gray-500">所有联系人都知道的信息</p>
-                    </div>
-                    <button @click="closePublicMemory" class="w-8 h-8 flex items-center justify-center bg-gray-200 rounded-full text-gray-600 hover:bg-gray-300"><i class="fa-solid fa-times"></i></button>
+            <div class="bg-white rounded-xl w-full max-w-md flex flex-col max-h-[90vh]">
+                <div class="p-4 border-b flex justify-between items-center">
+                    <h3 class="font-bold text-lg"><i class="fa-solid fa-globe mr-2 text-indigo-500"></i>公共记忆库</h3>
+                    <button @click="showPublicMemoryModal = false" class="text-gray-500"><i class="fa-solid fa-times"></i></button>
                 </div>
-                
-                <div class="flex-1 overflow-y-auto p-4 bg-slate-50 space-y-3">
-                    <div v-if="publicMemoryItems.length === 0" class="text-center text-gray-400 mt-10 text-sm">
-                        暂无记忆，请添加一条<br>例如：用户叫小橘
-                    </div>
-                    
-                    <div v-for="(item, index) in publicMemoryItems" :key="item.id" class="memory-card bg-white p-3 rounded-lg shadow-sm border border-gray-100 flex items-start gap-2">
-                        <div v-if="item.isEditing" class="flex-1">
-                            <textarea v-model="item.editContent" class="w-full border p-2 rounded text-sm mb-2 focus:ring-2 focus:ring-indigo-500" rows="2"></textarea>
-                            <div class="flex justify-end gap-2">
-                                <button @click="cancelEditMemory(item)" class="text-xs text-gray-500 px-2 py-1">取消</button>
-                                <button @click="saveEditMemory(item)" class="text-xs bg-indigo-600 text-white px-3 py-1 rounded">确定</button>
-                            </div>
-                        </div>
-                        <div v-else class="flex-1 cursor-pointer" @click="startEditMemory(item)">
-                            <p class="text-sm text-gray-700">{{ item.content }}</p>
-                        </div>
-
-                        <button v-if="!item.isEditing" @click="deletePublicMemory(index)" class="text-gray-300 hover:text-red-500 px-1">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </button>
-                    </div>
+                <div class="p-4 overflow-y-auto flex-1">
+                    <p class="text-xs text-gray-500 mb-2">这里的记忆会对**所有**联系人生效（例如：你的名字、习惯）。</p>
+                    <textarea v-model="publicMemory" class="w-full h-64 border rounded p-3 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="例如：用户叫小橘，是名学生..."></textarea>
                 </div>
-
-                <div class="p-3 border-t bg-white">
-                    <div class="flex gap-2">
-                        <input v-model="newPublicItem" @keydown.enter="addPublicMemory" type="text" placeholder="添加一条新记忆..." class="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
-                        <button @click="addPublicMemory" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md active:scale-95 transition">添加</button>
-                    </div>
+                <div class="p-4 border-t">
+                    <button @click="savePublicMemory" class="w-full bg-indigo-600 text-white py-2 rounded-lg font-bold">保存公共记忆</button>
                 </div>
             </div>
         </div>
@@ -172,37 +137,24 @@
             <div class="bg-white rounded-xl w-full max-w-md flex flex-col max-h-[90vh] shadow-2xl">
                 <div class="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-xl">
                     <h3 class="font-bold text-lg">设置: {{ currentContact.name }}</h3>
-                    <button @click="saveContactSettings" class="text-blue-600 font-bold text-sm">完成</button>
+                    <button @click="showSettingsModal = false" class="text-gray-500 text-xl"><i class="fa-solid fa-times"></i></button>
                 </div>
                 
-                <div class="overflow-y-auto flex-1 p-4 space-y-6">
+                <div class="overflow-y-auto flex-1 p-4 space-y-5">
+                    
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">昵称</label>
-                        <input v-model="tempConfig.name" type="text" class="w-full border rounded p-2 text-sm">
+                        <input v-model="tempConfig.name" type="text" class="w-full border rounded p-2">
                     </div>
 
                     <div class="bg-yellow-50 p-3 rounded-lg border border-yellow-100">
-                        <label class="block text-xs font-bold text-yellow-700 uppercase mb-2">
-                            <i class="fa-solid fa-lock mr-1"></i>专属记忆 (仅TA知道)
-                        </label>
-                        
-                        <div class="space-y-2 mb-3">
-                            <div v-for="(item, index) in tempConfig.privateMemoryItems" :key="index" class="bg-white p-2 rounded border border-yellow-200 shadow-sm flex items-center gap-2">
-                                <input v-model="item.content" class="flex-1 text-sm bg-transparent border-none focus:ring-0 p-0 text-gray-700" placeholder="内容...">
-                                <button @click="tempConfig.privateMemoryItems.splice(index, 1)" class="text-gray-300 hover:text-red-500">
-                                    <i class="fa-solid fa-times-circle"></i>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <button @click="addPrivateMemoryItem" class="w-full py-2 border border-dashed border-yellow-400 text-yellow-700 rounded text-xs hover:bg-yellow-100 transition">
-                            <i class="fa-solid fa-plus mr-1"></i> 添加一条专属记忆
-                        </button>
+                        <label class="block text-xs font-bold text-yellow-700 uppercase mb-1"><i class="fa-solid fa-lock mr-1"></i>专属记忆</label>
+                        <textarea v-model="tempConfig.privateMemory" rows="3" class="w-full border rounded p-2 text-sm" placeholder="仅当前联系人可见的记忆..."></textarea>
                     </div>
 
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">系统人设 (System Prompt)</label>
-                        <textarea v-model="tempConfig.systemPrompt" rows="3" class="w-full border rounded p-2 text-sm text-gray-600"></textarea>
+                        <textarea v-model="tempConfig.systemPrompt" rows="3" class="w-full border rounded p-2 text-sm"></textarea>
                     </div>
 
                     <div class="bg-slate-50 p-3 rounded-lg border">
@@ -227,6 +179,10 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="p-4 border-t bg-gray-50 rounded-b-xl">
+                    <button @click="saveContactSettings" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold shadow-md hover:bg-blue-700">保存设置</button>
+                </div>
             </div>
         </div>
 
@@ -245,19 +201,16 @@
                 const chatContainer = ref(null);
                 const userInput = ref('');
                 
-                // 核心数据
+                // 数据核心
+                const publicMemory = ref('');
                 const contacts = ref([]);
                 const currentContactIndex = ref(-1);
                 
-                // 公共记忆 (改用数组对象 [{id, content, isEditing}])
-                const publicMemoryItems = ref([]);
-                const newPublicItem = ref('');
-
-                // 临时设置对象
+                // 临时编辑对象（用于设置弹窗，不直接修改原数据直到保存）
                 const tempConfig = reactive({
                     name: '',
                     systemPrompt: '',
-                    privateMemoryItems: [], // 专属记忆也改用数组
+                    privateMemory: '',
                     config: { baseUrl: '', apiKey: '', model: '' }
                 });
 
@@ -265,131 +218,38 @@
                     currentContactIndex.value >= 0 ? contacts.value[currentContactIndex.value] : null
                 );
 
-                // --- 初始化与兼容处理 ---
+                // --- 初始化与存储 ---
                 onMounted(() => {
-                    // 加载联系人
-                    const savedContacts = localStorage.getItem('chat_pro_contacts_v2');
-                    if (savedContacts) {
-                        contacts.value = JSON.parse(savedContacts);
-                        // 数据迁移：如果旧数据是字符串，转为数组
-                        contacts.value.forEach(c => {
-                            if (typeof c.privateMemory === 'string') {
-                                c.privateMemoryItems = c.privateMemory ? [{content: c.privateMemory}] : [];
-                                delete c.privateMemory;
-                            }
-                            // 确保字段存在
-                            if (!c.privateMemoryItems) c.privateMemoryItems = [];
-                        });
-                    } else {
-                        // 尝试读取旧版本数据
-                        const oldContacts = localStorage.getItem('chat_pro_contacts');
-                        if (oldContacts) {
-                            contacts.value = JSON.parse(oldContacts).map(c => ({
-                                ...c,
-                                privateMemoryItems: c.privateMemory ? [{content: c.privateMemory}] : []
-                            }));
-                        } else {
-                            createDefaultContact();
-                        }
-                    }
+                    const savedContacts = localStorage.getItem('chat_pro_contacts');
+                    if (savedContacts) contacts.value = JSON.parse(savedContacts);
 
-                    // 加载公共记忆
-                    const savedPublic = localStorage.getItem('chat_pro_public_mem_v2');
-                    if (savedPublic) {
-                        publicMemoryItems.value = JSON.parse(savedPublic);
-                    } else {
-                        // 尝试读取旧版字符串记忆
-                        const oldPublic = localStorage.getItem('chat_pro_public_mem');
-                        if (oldPublic && oldPublic.trim()) {
-                            publicMemoryItems.value = [{ id: Date.now(), content: oldPublic, isEditing: false }];
-                        }
+                    const savedPublicMem = localStorage.getItem('chat_pro_public_mem');
+                    if (savedPublicMem) publicMemory.value = savedPublicMem;
+
+                    // 如果没有联系人，创建一个默认的
+                    if (contacts.value.length === 0) {
+                        createDefaultContact();
                     }
                 });
 
-                // 自动保存
-                watch(contacts, (newVal) => {
-                    localStorage.setItem('chat_pro_contacts_v2', JSON.stringify(newVal));
+                watch([contacts, publicMemory], () => {
+                    localStorage.setItem('chat_pro_contacts', JSON.stringify(contacts.value));
+                    localStorage.setItem('chat_pro_public_mem', publicMemory.value);
                 }, { deep: true });
 
-                watch(publicMemoryItems, (newVal) => {
-                    // 保存时只保存关键字段，过滤掉 editing 状态
-                    const toSave = newVal.map(i => ({ id: i.id, content: i.content }));
-                    localStorage.setItem('chat_pro_public_mem_v2', JSON.stringify(toSave));
-                }, { deep: true });
-
-                // --- 公共记忆管理 ---
-                const openPublicMemory = () => {
-                    showSidebar.value = false;
-                    showPublicMemoryModal.value = true;
-                };
-
-                const closePublicMemory = () => showPublicMemoryModal.value = false;
-
-                const addPublicMemory = () => {
-                    if (!newPublicItem.value.trim()) return;
-                    publicMemoryItems.value.push({
-                        id: Date.now(),
-                        content: newPublicItem.value.trim(),
-                        isEditing: false
-                    });
-                    newPublicItem.value = '';
-                };
-
-                const deletePublicMemory = (index) => {
-                    publicMemoryItems.value.splice(index, 1);
-                };
-
-                const startEditMemory = (item) => {
-                    item.editContent = item.content;
-                    item.isEditing = true;
-                };
-
-                const saveEditMemory = (item) => {
-                    if (item.editContent.trim()) {
-                        item.content = item.editContent.trim();
-                    }
-                    item.isEditing = false;
-                };
-
-                const cancelEditMemory = (item) => {
-                    item.isEditing = false;
-                };
-
-                // --- 专属记忆管理 (在设置里) ---
-                const openSettings = () => {
-                    if (!currentContact.value) return;
-                    const c = currentContact.value;
-                    tempConfig.name = c.name;
-                    tempConfig.systemPrompt = c.systemPrompt;
-                    // 深拷贝数组
-                    tempConfig.privateMemoryItems = c.privateMemoryItems ? JSON.parse(JSON.stringify(c.privateMemoryItems)) : [];
-                    tempConfig.config = { ...c.config };
-                    showSettingsModal.value = true;
-                };
-
-                const addPrivateMemoryItem = () => {
-                    tempConfig.privateMemoryItems.push({ content: '' });
-                };
-
-                const saveContactSettings = () => {
-                    const c = contacts.value[currentContactIndex.value];
-                    c.name = tempConfig.name;
-                    c.systemPrompt = tempConfig.systemPrompt;
-                    // 过滤空项并保存
-                    c.privateMemoryItems = tempConfig.privateMemoryItems.filter(i => i.content.trim());
-                    c.config = { ...tempConfig.config };
-                    showSettingsModal.value = false;
-                };
-
-                // --- 联系人基础 ---
+                // --- 联系人管理 ---
                 const createDefaultContact = () => {
                     contacts.value.push({
                         id: Date.now(),
                         name: '新联系人',
                         systemPrompt: '你是一个乐于助人的AI助手。',
-                        privateMemoryItems: [],
+                        privateMemory: '',
                         messages: [],
-                        config: { baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-3.5-turbo' }
+                        config: { 
+                            baseUrl: 'https://api.openai.com/v1', 
+                            apiKey: '', 
+                            model: 'gpt-3.5-turbo' 
+                        }
                     });
                 };
 
@@ -397,7 +257,7 @@
                     createDefaultContact();
                     currentContactIndex.value = contacts.value.length - 1;
                     showSidebar.value = false;
-                    openSettings();
+                    openSettings(); // 新建后直接打开设置让用户填 key
                 };
 
                 const selectContact = (index) => {
@@ -415,7 +275,38 @@
                     }
                 };
 
-                // --- 消息与API ---
+                // --- 设置与记忆 ---
+                const openSettings = () => {
+                    if (!currentContact.value) return;
+                    // 深拷贝当前数据到临时对象
+                    const c = currentContact.value;
+                    tempConfig.name = c.name;
+                    tempConfig.systemPrompt = c.systemPrompt;
+                    tempConfig.privateMemory = c.privateMemory || '';
+                    tempConfig.config = { ...c.config };
+                    showSettingsModal.value = true;
+                };
+
+                const saveContactSettings = () => {
+                    const c = contacts.value[currentContactIndex.value];
+                    c.name = tempConfig.name;
+                    c.systemPrompt = tempConfig.systemPrompt;
+                    c.privateMemory = tempConfig.privateMemory;
+                    c.config = { ...tempConfig.config };
+                    showSettingsModal.value = false;
+                };
+
+                const openPublicMemory = () => {
+                    showSidebar.value = false;
+                    showPublicMemoryModal.value = true;
+                };
+
+                const savePublicMemory = () => {
+                    showPublicMemoryModal.value = false;
+                    alert('公共记忆已更新');
+                };
+
+                // --- 核心消息逻辑 ---
                 const scrollToBottom = () => {
                     nextTick(() => {
                         if (chatContainer.value) chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
@@ -424,28 +315,30 @@
 
                 const sendMessage = async () => {
                     if (!userInput.value.trim() || isLoading.value || !currentContact.value) return;
+                    
                     const text = userInput.value;
                     userInput.value = '';
+                    
                     const contact = currentContact.value;
                     contact.messages.push({ role: 'user', content: text });
                     scrollToBottom();
+
                     await fetchAI(contact);
                 };
 
                 const fetchAI = async (contact) => {
                     isLoading.value = true;
                     try {
+                        // 1. 构造增强版 System Prompt (注入记忆)
                         let finalSystemPrompt = contact.systemPrompt;
                         
-                        // 构造 Prompt：将数组拼接成文本
-                        if (publicMemoryItems.value.length > 0) {
-                            const pubMemText = publicMemoryItems.value.map(i => `- ${i.content}`).join('\n');
-                            finalSystemPrompt += `\n\n【公共记忆信息】:\n${pubMemText}`;
+                        // 注入公共记忆
+                        if (publicMemory.value.trim()) {
+                            finalSystemPrompt += `\n\n【公共背景信息】:\n${publicMemory.value}`;
                         }
-                        
-                        if (contact.privateMemoryItems && contact.privateMemoryItems.length > 0) {
-                            const privMemText = contact.privateMemoryItems.map(i => `- ${i.content}`).join('\n');
-                            finalSystemPrompt += `\n\n【专属记忆信息】:\n${privMemText}`;
+                        // 注入专属记忆
+                        if (contact.privateMemory && contact.privateMemory.trim()) {
+                            finalSystemPrompt += `\n\n【当前对话专属记忆】:\n${contact.privateMemory}`;
                         }
 
                         const messagesPayload = [
@@ -453,8 +346,9 @@
                             ...contact.messages.filter(m => m.role !== 'error')
                         ];
 
+                        // 2. 使用联系人独立的配置
                         const cfg = contact.config;
-                        if (!cfg.apiKey) throw new Error("请设置 API Key");
+                        if (!cfg.apiKey) throw new Error("请点击右上角设置 API Key");
 
                         const res = await fetch(`${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
                             method: 'POST',
@@ -471,7 +365,9 @@
 
                         const data = await res.json();
                         if (!res.ok) throw new Error(data.error?.message || '请求失败');
+
                         contact.messages.push({ role: 'assistant', content: data.choices[0].message.content });
+
                     } catch (e) {
                         contact.messages.push({ role: 'error', content: e.message });
                     } finally {
@@ -502,7 +398,8 @@
                             headers: { 'Authorization': `Bearer ${cfg.apiKey}` }
                         });
                         const data = await res.json();
-                        alert(`拉取成功，发现 ${data.data.length} 个模型，推荐使用: ${data.data[0].id}`);
+                        alert(`拉取成功，发现 ${data.data.length} 个模型，请手动输入 ID。推荐: ${data.data[0].id}`);
+                        // 简单处理：这里不自动填充下拉框了，防止手机上UI太乱，只提示成功
                     } catch(e) {
                         alert('拉取失败: ' + e.message);
                     }
@@ -511,12 +408,10 @@
                 return {
                     showSidebar, showSettingsModal, showPublicMemoryModal,
                     contacts, currentContact, currentContactIndex,
-                    publicMemoryItems, newPublicItem, tempConfig, userInput, isLoading, chatContainer,
+                    publicMemory, tempConfig, userInput, isLoading, chatContainer,
                     // methods
                     addContact, selectContact, deleteContact,
-                    openSettings, saveContactSettings, openPublicMemory, closePublicMemory,
-                    addPublicMemory, deletePublicMemory, startEditMemory, saveEditMemory, cancelEditMemory,
-                    addPrivateMemoryItem,
+                    openSettings, saveContactSettings, openPublicMemory, savePublicMemory,
                     sendMessage, retractMessage, regenerate, fetchModels
                 };
             }
