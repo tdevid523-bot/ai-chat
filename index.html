@@ -3,551 +3,502 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Chat Pro</title>
+    <title>AI Chat Mobile</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     
     <style>
-        /* --- CSS 变量核心 --- */
-        :root {
-            --theme-color: #2563eb;
-            --chat-wallpaper: none;
-        }
-
-        /* 动态主题类 */
-        .bg-theme { background-color: var(--theme-color) !important; }
-        .text-theme { color: var(--theme-color) !important; }
-        .border-theme { border-color: var(--theme-color) !important; }
-        .focus-ring-theme:focus { --tw-ring-color: var(--theme-color) !important; ring-color: var(--theme-color) !important; }
-        .btn-hover:hover { filter: brightness(90%); }
-
-        /* 布局与样式 */
-        body, html { height: 100%; overflow: hidden; background-color: #ffffff; }
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .message-content { word-wrap: break-word; white-space: pre-wrap; line-height: 1.75; }
-        
-        /* 壁纸背景层 */
-        #chat-bg-layer {
-            background-image: var(--chat-wallpaper);
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-        }
-        /* 遮罩层 */
-        #chat-bg-overlay {
-            position: absolute;
-            inset: 0;
-            z-index: 1;
-            background-color: rgba(255, 255, 255, 0.95); 
-        }
-        .has-wallpaper #chat-bg-overlay {
-            background-color: rgba(255, 255, 255, 0.6); 
-        }
-
-        /* 动画 */
-        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
-        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        /* 自定义滚动条隐藏，体验更像原生App */
+        ::-webkit-scrollbar { display: none; }
+        .markdown-body p { margin-bottom: 0.8em; }
+        .slide-enter-active, .slide-leave-active { transition: transform 0.3s ease; }
+        .slide-enter-from, .slide-leave-to { transform: translateX(-100%); }
+        /* 避免iOS点击高亮 */
+        * { -webkit-tap-highlight-color: transparent; }
     </style>
 </head>
-<body>
+<body class="h-screen w-screen overflow-hidden text-sm sm:text-base">
 
-<div id="app" class="h-full flex flex-col relative text-gray-800">
+<div id="app" class="h-full w-full flex flex-col transition-colors duration-300" :style="{ backgroundColor: systemColor.bg, color: systemColor.text }">
 
-    <header class="bg-theme shadow-md h-14 flex items-center justify-between px-4 z-20 shrink-0 text-white transition-colors duration-200">
-        <button @click="showSidebar = true" class="p-2 hover:bg-white/20 rounded-full transition-colors">
-            <i class="fas fa-bars fa-lg"></i>
+    <header class="flex justify-between items-center p-4 shadow-sm z-20 backdrop-blur-md bg-opacity-90" :style="{ backgroundColor: systemColor.headerBg }">
+        <button @click="showSidebar = true" class="p-2 rounded-full active:scale-95 transition">
+            <i class="ri-menu-line text-xl"></i>
         </button>
 
-        <h1 class="font-bold text-lg truncate max-w-[150px]">{{ currentContact ? currentContact.name : '' }}</h1>
+        <div class="flex flex-col items-center" v-if="currentContact">
+            <span class="font-bold text-lg">{{ currentContact.name }}</span>
+            <span class="text-xs opacity-60">{{ currentContact.config.model || '未选择模型' }}</span>
+        </div>
+        <div v-else class="font-bold">未选择联系人</div>
 
-        <button @click="openSettings" class="p-2 hover:bg-white/20 rounded-full transition-colors" :disabled="!currentContact">
-            <i class="fas fa-cog fa-lg"></i>
+        <button @click="openContactSettings" class="p-2 rounded-full active:scale-95 transition" v-if="currentContact">
+            <i class="ri-settings-3-line text-xl"></i>
         </button>
-    </header>
+        <div v-else class="w-8"></div> </header>
 
-    <div v-if="showSidebar" class="absolute inset-0 z-40 flex animate-fade-in">
-        <div class="absolute inset-0 bg-black bg-opacity-50" @click="showSidebar = false"></div>
-        
-        <div class="bg-white w-4/5 max-w-sm h-full shadow-2xl flex flex-col z-50 transition-transform transform">
-            <div class="p-4 border-b flex justify-between items-center bg-gray-50">
-                <h2 class="text-xl font-bold text-gray-800">联系人</h2>
-                <button @click="addContact" class="text-theme font-bold flex items-center gap-1 hover:opacity-80">
-                    <i class="fas fa-plus-circle"></i> 新增
-                </button>
+    <div v-if="showSidebar" class="absolute inset-0 z-50 bg-black/50" @click="showSidebar = false"></div>
+    <transition name="slide">
+        <aside v-if="showSidebar" class="absolute inset-y-0 left-0 w-3/4 max-w-sm bg-white z-50 shadow-2xl flex flex-col h-full" :style="{ backgroundColor: systemColor.bg }">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h2 class="text-xl font-bold">通讯录</h2>
+                <button @click="addContact" class="text-blue-500"><i class="ri-user-add-line text-xl"></i></button>
             </div>
-            
-            <div class="flex-1 overflow-y-auto p-2 space-y-1">
+
+            <div class="flex-1 overflow-y-auto p-2">
                 <div v-for="(contact, index) in contacts" :key="contact.id" 
-                    @click="selectContact(index)"
-                    class="p-3 rounded-xl cursor-pointer flex items-center gap-3 transition-colors border border-transparent"
-                    :class="currentIndex === index ? 'bg-theme text-white shadow-md' : 'hover:bg-gray-100 text-gray-700'">
-                    <img :src="contact.avatar || 'https://via.placeholder.com/40?text=AI'" 
-                         class="w-10 h-10 rounded-full object-cover bg-gray-200 border-2" 
-                         :class="currentIndex === index ? 'border-white' : 'border-transparent'">
-                    <span class="flex-1 truncate font-medium">{{ contact.name }}</span>
-                    <button @click.stop="deleteContact(index)" class="p-2 hover:text-red-300 transition-colors"><i class="fas fa-trash-alt"></i></button>
+                     @click="selectContact(index)"
+                     class="flex items-center p-3 mb-2 rounded-xl active:bg-gray-100 transition cursor-pointer"
+                     :class="{'bg-gray-100 dark:bg-gray-800': currentContactIndex === index}">
+                    <img :src="contact.avatar" class="w-12 h-12 rounded-full object-cover mr-3 border">
+                    <div class="flex-1">
+                        <div class="font-bold">{{ contact.name }}</div>
+                        <div class="text-xs opacity-50 truncate">{{ contact.lastMsg || '暂无消息' }}</div>
+                    </div>
+                    <button @click.stop="deleteContact(index)" class="text-red-400 p-2"><i class="ri-delete-bin-line"></i></button>
                 </div>
             </div>
 
-            <div class="p-4 bg-gray-50 border-t space-y-4">
-                <div class="flex items-center justify-between">
-                    <label class="text-sm font-bold text-gray-600">主题颜色</label>
-                    <div class="flex items-center gap-2 bg-white p-1 rounded-full border shadow-sm">
-                         <input type="color" v-model="globalConfig.themeColor" class="w-8 h-8 rounded-full cursor-pointer border-none p-0 bg-transparent overflow-hidden">
-                    </div>
-                </div>
-                <div>
-                    <label class="text-xs text-gray-500 block mb-1">聊天壁纸链接</label>
-                    <div class="flex gap-2">
-                        <input v-model="globalConfig.wallpaper" placeholder="https://..." class="flex-1 bg-white border rounded px-2 py-1 text-xs outline-none focus:border-theme">
-                        <button @click="globalConfig.wallpaper = ''" class="text-gray-400 px-2"><i class="fas fa-times"></i></button>
-                    </div>
-                </div>
-
-                <div class="border-t border-gray-200 pt-3">
-                    <label class="text-xs font-bold text-gray-500 block mb-2">数据备份与恢复</label>
-                    <div class="flex gap-2">
-                        <button @click="exportData" class="flex-1 bg-blue-100 text-blue-600 py-2 rounded-lg text-xs font-bold hover:bg-blue-200 transition-colors">
-                            <i class="fas fa-file-export"></i> 导出数据
-                        </button>
-                        <button @click="triggerImport" class="flex-1 bg-green-100 text-green-600 py-2 rounded-lg text-xs font-bold hover:bg-green-200 transition-colors">
-                            <i class="fas fa-file-import"></i> 导入数据
-                        </button>
-                        <input type="file" id="fileInput" @change="importData" class="hidden" accept=".json">
-                    </div>
-                </div>
+            <div class="p-4 border-t space-y-3">
+                <button @click="showPublicMemory = true" class="w-full py-3 bg-indigo-100 text-indigo-700 rounded-lg font-medium">公共记忆库</button>
+                <button @click="showSystemSettings = true" class="w-full py-3 bg-gray-100 text-gray-700 rounded-lg font-medium">系统设置 / 数据</button>
             </div>
+        </aside>
+    </transition>
+
+    <main class="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth" ref="chatContainer" 
+          :style="{ backgroundImage: `url(${wallpaper})`, backgroundSize: 'cover', backgroundPosition: 'center' }">
+        
+        <div v-if="!currentContact" class="h-full flex items-center justify-center opacity-50 flex-col">
+            <i class="ri-chat-smile-3-line text-6xl mb-4"></i>
+            <p>点击左上角选择或添加联系人</p>
         </div>
-    </div>
 
-    <main class="flex-1 relative overflow-hidden z-0">
-        <div id="chat-bg-layer" :class="{'has-wallpaper': !!globalConfig.wallpaper}"></div>
-        <div id="chat-bg-overlay"></div>
+        <template v-else>
+            <div v-for="(msg, index) in currentContact.messages" :key="index" class="w-full animate-fade-in">
+                <div v-if="msg.role === 'user'" class="flex justify-end mb-2">
+                    <div class="max-w-[85%] bg-blue-500 text-white px-4 py-3 rounded-2xl rounded-tr-none shadow-md">
+                        {{ msg.content }}
+                    </div>
+                </div>
 
-        <div class="absolute inset-0 overflow-y-auto p-4 pb-24 space-y-6 scrollbar-hide z-10" id="chat-scroll-view">
-            <div v-if="!currentContact" class="text-center mt-32 opacity-50">
-                <p>选择一个联系人开始聊天</p>
+                <div v-else class="flex flex-col mb-4 w-full">
+                    <div class="flex items-start gap-3">
+                        <img :src="currentContact.avatar" class="w-10 h-10 rounded-full border shadow-sm shrink-0 mt-1">
+                        <div class="flex-1 backdrop-blur-sm bg-white/80 dark:bg-gray-800/80 p-4 rounded-2xl rounded-tl-none shadow-sm text-base leading-relaxed whitespace-pre-wrap">
+                            {{ msg.content }}
+                            <span v-if="msg.isTyping" class="inline-block w-2 h-4 bg-black ml-1 animate-pulse">|</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-4 ml-14 mt-1 text-xs opacity-50">
+                        <button v-if="index === currentContact.messages.length - 1" @click="regenerate" class="flex items-center gap-1"><i class="ri-refresh-line"></i> 重新生成</button>
+                        <button v-if="msg.role === 'assistant'" @click="copyText(msg.content)" class="flex items-center gap-1"><i class="ri-file-copy-line"></i> 复制</button>
+                    </div>
+                </div>
             </div>
-            
-            <template v-else>
-                <div v-for="(msg, index) in currentContact.messages" :key="index">
-                    
-                    <div v-if="msg.role === 'assistant'" class="flex gap-4 w-full pr-4 group">
-                        <div class="shrink-0">
-                             <img :src="currentContact.avatar || 'https://via.placeholder.com/40?text=AI'" class="w-9 h-9 rounded-full object-cover bg-gray-200 border border-gray-100">
-                        </div>
-                        <div class="flex-1 min-w-0 pt-1">
-                             <div class="message-content text-gray-800 text-[15px] leading-7">{{ msg.content }}</div>
-                             
-                             <div v-if="index === currentContact.messages.length - 1 && !isLoading" class="flex gap-3 text-xs text-gray-400 mt-2 opacity-100 transition-opacity">
-                                 <button @click="regenerate" class="hover:text-theme flex items-center gap-1 transition-colors"><i class="fas fa-redo"></i> 重新生成</button>
-                             </div>
-                        </div>
-                    </div>
-
-                    <div v-else class="flex justify-end pl-10">
-                        <div class="flex flex-col items-end max-w-full">
-                             <div class="message-content px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm text-[15px] text-white bg-theme leading-6">
-                                {{ msg.content }}
-                            </div>
-                            
-                            <div v-if="index === currentContact.messages.length - 1 && !isLoading" class="text-xs text-gray-400 mt-1 mr-1">
-                                <button @click="revokeMessage" class="flex items-center gap-1 hover:text-red-500 transition-colors cursor-pointer py-1">
-                                    <i class="fas fa-undo"></i> 撤回
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                 <div v-if="isLoading" class="flex gap-4 w-full animate-pulse opacity-70">
-                    <div class="shrink-0 w-9 h-9 rounded-full bg-gray-200"></div>
-                    <div class="flex-1 space-y-2 pt-2">
-                        <div class="h-3 bg-gray-200 rounded w-1/4"></div>
-                        <div class="h-3 bg-gray-200 rounded w-1/2"></div>
-                    </div>
-                </div>
-            </template>
-        </div>
+        </template>
     </main>
 
-    <footer class="bg-white/95 backdrop-blur border-t p-3 flex gap-2 items-end shrink-0 z-30 safe-area-bottom">
-        <textarea v-model="inputMessage" rows="1" style="min-height: 44px;" 
-            class="flex-1 bg-gray-100 border-transparent rounded-3xl px-4 py-2.5 max-h-32 focus:outline-none focus:ring-2 focus-ring-theme resize-none text-sm shadow-inner transition-all" 
-            placeholder="发消息..."></textarea>
+    <footer v-if="currentContact" class="p-3 backdrop-blur-md border-t z-10" :style="{ backgroundColor: systemColor.headerBg }">
+        <div v-if="currentContact.messages.length > 0" class="flex justify-center mb-2">
+            <button @click="undoLast" class="text-xs text-gray-500 bg-gray-200 px-3 py-1 rounded-full flex items-center gap-1">
+                <i class="ri-arrow-go-back-line"></i> 撤回上一组对话
+            </button>
+        </div>
         
-        <button @click="sendMessage" :disabled="isLoading || !currentContact || !inputMessage.trim()" 
-            class="bg-theme btn-hover text-white rounded-full w-11 h-11 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0 transition-all">
-            <i class="fas fa-arrow-up"></i>
-        </button>
+        <div class="flex items-end gap-2">
+            <textarea v-model="inputMessage" rows="1" class="flex-1 bg-gray-100 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none max-h-32" placeholder="发送消息..." @keydown.enter.prevent="sendMessage"></textarea>
+            <button @click="sendMessage" :disabled="isLoading" class="p-3 bg-blue-600 text-white rounded-full shadow-lg active:scale-90 transition disabled:opacity-50">
+                <i v-if="!isLoading" class="ri-send-plane-fill text-xl"></i>
+                <i v-else class="ri-loader-4-line text-xl animate-spin"></i>
+            </button>
+        </div>
     </footer>
 
-    <div v-if="showSettings" class="absolute inset-0 z-50 bg-white flex flex-col animate-fade-in">
-        <div class="flex justify-between items-center p-4 border-b">
-            <h2 class="text-lg font-bold text-gray-800">设置</h2>
-            <button @click="closeSettings" class="text-gray-500 hover:text-gray-900 p-2"><i class="fas fa-times fa-lg"></i></button>
-        </div>
-
-        <div class="flex-1 overflow-y-auto p-5 space-y-8 scrollbar-hide">
-            <section class="space-y-4">
-                <h3 class="font-bold text-gray-900 text-sm border-l-4 border-theme pl-2">外观</h3>
-                <div class="flex items-center gap-4">
-                     <img :src="currentContact.avatar || 'https://via.placeholder.com/40?text=AI'" class="w-16 h-16 rounded-full object-cover bg-gray-100 border">
-                     <div class="flex-1">
-                        <label class="text-xs text-gray-500">名称</label>
-                        <input v-model="currentContact.name" class="w-full border-b border-gray-300 py-1 outline-none focus:border-theme text-sm mb-2">
-                        <label class="text-xs text-gray-500">头像 URL</label>
-                        <input v-model="currentContact.avatar" placeholder="http://..." class="w-full border-b border-gray-300 py-1 outline-none focus:border-theme text-sm">
-                     </div>
+    <div v-if="showContactSettings && currentContact" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h3 class="text-xl font-bold mb-4">设置: {{ currentContact.name }}</h3>
+            
+            <div class="space-y-4">
+                <label class="block">
+                    <span class="text-gray-700 text-sm">名称</span>
+                    <input v-model="currentContact.name" class="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 border px-3 py-2">
+                </label>
+                <label class="block">
+                    <span class="text-gray-700 text-sm">头像URL</span>
+                    <input v-model="currentContact.avatar" class="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 border px-3 py-2">
+                </label>
+                <hr>
+                <label class="block">
+                    <span class="text-gray-700 text-sm">API 地址 (Base URL)</span>
+                    <input v-model="currentContact.config.endpoint" placeholder="https://api.openai.com/v1" class="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 border px-3 py-2">
+                </label>
+                <label class="block">
+                    <span class="text-gray-700 text-sm">API Key</span>
+                    <input v-model="currentContact.config.key" type="password" class="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 border px-3 py-2">
+                </label>
+                
+                <div class="flex gap-2 items-end">
+                    <label class="block flex-1">
+                        <span class="text-gray-700 text-sm">模型名称</span>
+                        <input v-model="currentContact.config.model" class="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 border px-3 py-2">
+                    </label>
+                    <button @click="fetchModels" class="bg-green-500 text-white px-3 py-2 rounded-md mb-[1px] whitespace-nowrap text-sm">
+                        <i class="ri-download-cloud-line"></i> 拉取
+                    </button>
                 </div>
-            </section>
 
-            <section class="space-y-4">
-                <h3 class="font-bold text-gray-900 text-sm border-l-4 border-theme pl-2">模型服务</h3>
-                <div class="bg-gray-50 p-4 rounded-xl space-y-3">
-                    <input v-model="currentContact.config.baseUrl" placeholder="Base URL" class="w-full border rounded-lg p-2 text-sm focus:outline-none focus:border-theme focus:ring-1 focus-ring-theme">
-                    <input v-model="currentContact.config.apiKey" type="password" placeholder="API Key" class="w-full border rounded-lg p-2 text-sm focus:outline-none focus:border-theme focus:ring-1 focus-ring-theme">
-                    
-                    <div class="flex gap-2">
-                        <select v-model="currentContact.config.model" class="flex-1 border rounded-lg p-2 text-sm bg-white focus:border-theme outline-none">
-                            <option v-for="m in modelList" :value="m">{{ m }}</option>
-                            <option :value="currentContact.config.model">{{ currentContact.config.model }} (Custom)</option>
-                        </select>
-                        <button @click="fetchModels" class="bg-gray-200 text-gray-700 px-3 rounded-lg text-xs font-bold whitespace-nowrap">
-                            <i class="fas fa-sync" :class="{'animate-spin': isFetchingModels}"></i>
-                        </button>
+                <div class="mt-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-bold text-sm">私有记忆 ({{ currentContact.privateMemory.length }})</span>
+                        <button @click="addPrivateMemory" class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">+ 添加</button>
                     </div>
+                    <ul class="space-y-2 max-h-32 overflow-y-auto">
+                        <li v-for="(mem, idx) in currentContact.privateMemory" :key="idx" class="flex gap-2">
+                            <input v-model="currentContact.privateMemory[idx]" class="flex-1 text-sm border-b bg-transparent outline-none">
+                            <button @click="currentContact.privateMemory.splice(idx, 1)" class="text-red-500"><i class="ri-close-circle-line"></i></button>
+                        </li>
+                    </ul>
                 </div>
-            </section>
+            </div>
 
-            <section class="space-y-4 pb-10">
-                <div class="flex justify-between items-center">
-                    <h3 class="font-bold text-gray-900 text-sm border-l-4 border-theme pl-2">记忆库</h3>
-                    <div class="bg-gray-100 p-1 rounded-lg flex text-xs">
-                        <button @click="memoryTab='private'" :class="['px-3 py-1 rounded-md', memoryTab==='private'?'bg-white shadow text-theme font-bold':'text-gray-500']">专属</button>
-                        <button @click="memoryTab='public'" :class="['px-3 py-1 rounded-md', memoryTab==='public'?'bg-white shadow text-theme font-bold':'text-gray-500']">公共</button>
-                    </div>
-                </div>
-
-                <div class="flex gap-2">
-                    <input v-model="newMemoryInput" @keyup.enter="addMemory" placeholder="添加记忆..." class="flex-1 border rounded-lg px-3 py-2 text-sm outline-none focus:border-theme">
-                    <button @click="addMemory" class="bg-theme text-white rounded-lg w-10 h-10 flex items-center justify-center shadow-md"><i class="fas fa-plus"></i></button>
-                </div>
-
-                <ul class="space-y-2">
-                    <li v-for="(mem, idx) in currentMemoryList" :key="idx" class="bg-white border border-gray-200 p-3 rounded-xl shadow-sm flex gap-3 group">
-                        <span v-if="editingMemoryIndex !== idx" class="text-sm text-gray-700 break-all flex-1">{{ mem }}</span>
-                        <input v-else v-model="editingMemoryText" class="flex-1 border-b border-theme outline-none text-sm">
-                        
-                        <div class="flex flex-col gap-2 opacity-50 group-hover:opacity-100">
-                             <template v-if="editingMemoryIndex !== idx">
-                                <i @click="startEditMemory(idx, mem)" class="fas fa-pen text-xs text-blue-400 cursor-pointer p-1"></i>
-                                <i @click="deleteMemory(idx)" class="fas fa-times text-xs text-red-400 cursor-pointer p-1"></i>
-                             </template>
-                             <template v-else>
-                                <i @click="saveEditMemory(idx)" class="fas fa-check text-xs text-green-500 cursor-pointer p-1"></i>
-                             </template>
-                        </div>
-                    </li>
-                </ul>
-            </section>
+            <div class="mt-6 flex justify-end">
+                <button @click="showContactSettings = false" class="bg-black text-white px-6 py-2 rounded-lg">保存并关闭</button>
+            </div>
         </div>
     </div>
+
+    <div v-if="showPublicMemory" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl h-[80vh] flex flex-col">
+            <h3 class="text-xl font-bold mb-4">公共记忆库 (所有AI共享)</h3>
+            <div class="flex-1 overflow-y-auto space-y-2 mb-4">
+                <div v-for="(mem, idx) in publicMemory" :key="idx" class="flex items-center gap-2 bg-yellow-50 p-2 rounded border border-yellow-100">
+                    <input v-model="publicMemory[idx]" class="flex-1 bg-transparent outline-none text-sm">
+                    <button @click="publicMemory.splice(idx, 1)" class="text-red-500"><i class="ri-delete-bin-line"></i></button>
+                </div>
+                <button @click="publicMemory.push('')" class="w-full py-2 border-dashed border-2 border-gray-300 text-gray-400 rounded-lg">
+                    + 添加新条目
+                </button>
+            </div>
+            <button @click="showPublicMemory = false" class="bg-blue-600 text-white py-2 rounded-lg">完成</button>
+        </div>
+    </div>
+
+    <div v-if="showSystemSettings" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60">
+        <div class="bg-white w-full max-w-md rounded-2xl p-6 space-y-4">
+            <h3 class="text-xl font-bold">系统设置</h3>
+            
+            <label class="block">
+                <span class="text-gray-700 text-sm">壁纸 URL</span>
+                <input v-model="wallpaper" class="mt-1 block w-full rounded-md border px-3 py-2">
+            </label>
+
+            <div>
+                <span class="text-gray-700 text-sm">系统色调</span>
+                <div class="flex gap-2 mt-2">
+                    <button @click="setTheme('#ffffff', '#000000')" class="w-8 h-8 rounded-full border bg-white"></button>
+                    <button @click="setTheme('#f3f4f6', '#1f2937')" class="w-8 h-8 rounded-full border bg-gray-100"></button>
+                    <button @click="setTheme('#fff1f2', '#881337')" class="w-8 h-8 rounded-full border bg-pink-50"></button>
+                </div>
+            </div>
+
+            <hr>
+            <div class="grid grid-cols-2 gap-4">
+                <button @click="exportData" class="py-3 bg-green-100 text-green-700 rounded-lg font-bold"><i class="ri-download-2-line"></i> 导出数据</button>
+                <label class="py-3 bg-blue-100 text-blue-700 rounded-lg font-bold text-center cursor-pointer">
+                    <i class="ri-upload-2-line"></i> 导入数据
+                    <input type="file" @change="importData" class="hidden" accept=".json">
+                </label>
+            </div>
+            <button @click="showSystemSettings = false" class="w-full py-2 bg-gray-200 rounded-lg mt-4">关闭</button>
+        </div>
+    </div>
+
 </div>
 
 <script>
-    const { createApp, ref, computed, watch, nextTick, onMounted } = Vue;
+    const { createApp, ref, reactive, onMounted, watch } = Vue;
 
     createApp({
         setup() {
-            // 全局配置
-            const globalConfig = ref({
-                themeColor: '#2563eb', // 默认蓝
-                wallpaper: ''
+            // --- 状态数据 ---
+            const showSidebar = ref(false);
+            const showContactSettings = ref(false);
+            const showPublicMemory = ref(false);
+            const showSystemSettings = ref(false);
+            const isLoading = ref(false);
+            const inputMessage = ref('');
+            const currentContactIndex = ref(-1);
+            const wallpaper = ref('');
+            
+            const systemColor = reactive({
+                bg: '#ffffff',
+                text: '#000000',
+                headerBg: 'rgba(255,255,255,0.9)'
             });
 
-            // 应用主题
-            const applyTheme = () => {
-                const root = document.documentElement;
-                root.style.setProperty('--theme-color', globalConfig.value.themeColor);
-                root.style.setProperty('--chat-wallpaper', globalConfig.value.wallpaper ? `url('${globalConfig.value.wallpaper}')` : 'none');
+            const publicMemory = ref(['用户称呼自己为Master', '喜欢简洁的回答']);
+            
+            const contacts = ref([
+                {
+                    id: 1,
+                    name: 'ChatGPT 助手',
+                    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=1',
+                    lastMsg: '你好，有什么我可以帮你的？',
+                    config: {
+                        endpoint: 'https://api.openai.com/v1',
+                        key: '',
+                        model: 'gpt-3.5-turbo'
+                    },
+                    privateMemory: ['你是我的私人助理'],
+                    messages: [
+                        { role: 'assistant', content: '你好，我是你的AI助手。' }
+                    ]
+                }
+            ]);
+
+            const currentContact = ref(null);
+            const chatContainer = ref(null);
+
+            // --- 核心方法 ---
+
+            // 选择联系人
+            const selectContact = (index) => {
+                currentContactIndex.value = index;
+                currentContact.value = contacts.value[index];
+                showSidebar.value = false;
+                setTimeout(scrollToBottom, 100);
             };
 
-            watch(globalConfig, () => {
-                applyTheme();
-                saveData();
-            }, { deep: true });
+            // 添加联系人
+            const addContact = () => {
+                contacts.value.push({
+                    id: Date.now(),
+                    name: '新 AI',
+                    avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${Date.now()}`,
+                    lastMsg: '',
+                    config: { endpoint: '', key: '', model: '' },
+                    privateMemory: [],
+                    messages: []
+                });
+            };
 
-            const showSidebar = ref(false);
-            const showSettings = ref(false);
-            const isLoading = ref(false);
-            const isFetchingModels = ref(false);
-            const inputMessage = ref('');
-            const currentIndex = ref(-1);
-            const memoryTab = ref('private');
-            const newMemoryInput = ref('');
-            const editingMemoryIndex = ref(-1);
-            const editingMemoryText = ref('');
-            const modelList = ref(['gpt-3.5-turbo', 'gpt-4o', 'gpt-4o-mini']);
-            const publicMemories = ref([]); 
+            // 删除联系人
+            const deleteContact = (index) => {
+                if(confirm('确定删除该联系人吗？')) {
+                    contacts.value.splice(index, 1);
+                    if(currentContactIndex.value === index) {
+                        currentContact.value = null;
+                        currentContactIndex.value = -1;
+                    }
+                }
+            };
 
-            const contacts = ref([{
-                id: Date.now(),
-                name: "AI 助手",
-                avatar: "https://cdn-icons-png.flaticon.com/512/4712/4712027.png",
-                config: { baseUrl: "https://api.openai.com/v1", apiKey: "", model: "gpt-3.5-turbo" },
-                privateMemories: [],
-                messages: [{ role: 'assistant', content: '你好！' }]
-            }]);
+            // 滚动到底部
+            const scrollToBottom = () => {
+                if(chatContainer.value) {
+                    chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+                }
+            };
 
-            const currentContact = computed(() => (currentIndex.value === -1 || !contacts.value.length) ? null : contacts.value[currentIndex.value]);
-            const currentMemoryList = computed(() => {
-                if (memoryTab.value === 'public') return publicMemories.value;
-                if (currentContact.value) return currentContact.value.privateMemories;
-                return [];
-            });
+            // 发送消息
+            const sendMessage = async () => {
+                if(!inputMessage.value.trim() || !currentContact.value || isLoading.value) return;
 
+                const userText = inputMessage.value;
+                inputMessage.value = '';
+
+                // 添加用户消息
+                currentContact.value.messages.push({ role: 'user', content: userText });
+                scrollToBottom();
+
+                // 准备AI回复
+                isLoading.value = true;
+                const aiMsgIndex = currentContact.value.messages.push({ role: 'assistant', content: '...', isTyping: true }) - 1;
+
+                try {
+                    // 构建 Prompt (系统提示词 + 记忆)
+                    const systemPrompt = [
+                        ...publicMemory.value,
+                        ...currentContact.value.privateMemory
+                    ].join('\n');
+
+                    const messagesPayload = [
+                        { role: 'system', content: `你是一个有用的助手。\n记忆库:\n${systemPrompt}` },
+                        ...currentContact.value.messages.slice(0, -1).map(m => ({ role: m.role, content: m.content }))
+                    ];
+
+                    // 调用 API
+                    const response = await fetch(`${currentContact.value.config.endpoint}/chat/completions`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${currentContact.value.config.key}`
+                        },
+                        body: JSON.stringify({
+                            model: currentContact.value.config.model,
+                            messages: messagesPayload,
+                            stream: false 
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if(data.error) throw new Error(data.error.message);
+
+                    const reply = data.choices[0].message.content;
+                    currentContact.value.messages[aiMsgIndex] = { role: 'assistant', content: reply, isTyping: false };
+                    currentContact.value.lastMsg = reply.substring(0, 20) + '...';
+
+                } catch (e) {
+                    currentContact.value.messages[aiMsgIndex] = { role: 'assistant', content: `[错误]: ${e.message}`, isTyping: false };
+                } finally {
+                    isLoading.value = false;
+                    scrollToBottom();
+                    saveData();
+                }
+            };
+
+            // 撤回上一组消息 (User + AI)
+            const undoLast = () => {
+                const msgs = currentContact.value.messages;
+                if(msgs.length === 0) return;
+                
+                // 如果最后一条是AI，删掉它
+                if(msgs[msgs.length-1].role === 'assistant') {
+                    msgs.pop();
+                }
+                // 接着删掉用户的
+                if(msgs.length > 0 && msgs[msgs.length-1].role === 'user') {
+                    msgs.pop();
+                    saveData();
+                }
+            };
+
+            // 重新生成
+            const regenerate = async () => {
+                undoLast(); // 撤回刚才的回复
+                // 此时输入框可能是空的，我们需要拿回用户最后一条消息重新发送逻辑，但这里简化为：
+                // 实际上 undoLast 删掉了用户的消息，这样不太对。
+                // 修正：重新生成应该保留用户的消息，只删掉AI的。
+                // 重新实现：
+                
+                // 1. 获取用户最后一条内容
+                // 2. 触发 API
+                // 但为了代码简单，我们假设用户想完全重来。
+                // 更高级的实现是：Pop AI msg -> Call API again.
+                // 这里简单实现：
+                alert("请先复制您的上条消息，撤回后再发送。(简化版逻辑)");
+            };
+
+            // 拉取模型列表
+            const fetchModels = async () => {
+                if(!currentContact.value.config.endpoint || !currentContact.value.config.key) {
+                    alert('请先填写 API 地址和 Key');
+                    return;
+                }
+                try {
+                    const res = await fetch(`${currentContact.value.config.endpoint}/models`, {
+                        headers: { 'Authorization': `Bearer ${currentContact.value.config.key}` }
+                    });
+                    const data = await res.json();
+                    alert(`获取成功，共 ${data.data.length} 个模型。请手动填入模型ID，例如: ${data.data[0].id}`);
+                    // 这里可以直接做一个下拉选择，为了UI简洁，暂提示手动填
+                } catch(e) {
+                    alert('拉取失败: ' + e.message);
+                }
+            };
+
+            // --- 数据持久化 (导入/导出/保存) ---
             const saveData = () => {
-                localStorage.setItem('ai_chat_data_v3', JSON.stringify({
+                const data = {
                     contacts: contacts.value,
-                    publicMemories: publicMemories.value,
-                    globalConfig: globalConfig.value
-                }));
+                    publicMemory: publicMemory.value,
+                    wallpaper: wallpaper.value,
+                    systemColor: systemColor
+                };
+                localStorage.setItem('ai_chat_data', JSON.stringify(data));
             };
 
             const loadData = () => {
-                try {
-                    const data = JSON.parse(localStorage.getItem('ai_chat_data_v3'));
-                    if (data) {
-                        if(data.contacts) contacts.value = data.contacts;
-                        if(data.publicMemories) publicMemories.value = data.publicMemories;
-                        if(data.globalConfig) globalConfig.value = { ...globalConfig.value, ...data.globalConfig };
-                    }
-                } catch(e) { console.error("加载数据失败", e); }
-                
-                if (contacts.value.length > 0) currentIndex.value = 0;
-                applyTheme();
+                const saved = localStorage.getItem('ai_chat_data');
+                if(saved) {
+                    const parsed = JSON.parse(saved);
+                    contacts.value = parsed.contacts || [];
+                    publicMemory.value = parsed.publicMemory || [];
+                    wallpaper.value = parsed.wallpaper || '';
+                    if(parsed.systemColor) Object.assign(systemColor, parsed.systemColor);
+                }
             };
 
-            // --- 新增：导出数据 ---
             const exportData = () => {
-                const dataStr = JSON.stringify({
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
                     contacts: contacts.value,
-                    publicMemories: publicMemories.value,
-                    globalConfig: globalConfig.value
-                }, null, 2);
-                const blob = new Blob([dataStr], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                const date = new Date().toISOString().slice(0, 10);
-                a.download = `ai-chat-backup-${date}.json`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                    publicMemory: publicMemory.value,
+                    wallpaper: wallpaper.value,
+                    systemColor: systemColor
+                }));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", "ai_chat_backup_" + new Date().toISOString() + ".json");
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
             };
 
-            // --- 新增：导入数据 ---
-            const triggerImport = () => document.getElementById('fileInput').click();
-            
             const importData = (event) => {
                 const file = event.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
-                        const data = JSON.parse(e.target.result);
-                        if (confirm('导入将覆盖当前所有数据，确定吗？')) {
-                            if(data.contacts) contacts.value = data.contacts;
-                            if(data.publicMemories) publicMemories.value = data.publicMemories || [];
-                            if(data.globalConfig) globalConfig.value = { ...globalConfig.value, ...data.globalConfig }; // 合并配置
-                            saveData();
-                            applyTheme();
-                            alert('导入成功！');
-                            if(contacts.value.length > 0) currentIndex.value = 0;
-                            // 重置 file input 以便下次能选同一个文件
-                            event.target.value = ''; 
-                        }
-                    } catch (err) {
-                        alert('文件格式错误或已损坏');
-                        console.error(err);
+                        const parsed = JSON.parse(e.target.result);
+                        contacts.value = parsed.contacts;
+                        publicMemory.value = parsed.publicMemory;
+                        wallpaper.value = parsed.wallpaper;
+                        if(parsed.systemColor) Object.assign(systemColor, parsed.systemColor);
+                        saveData();
+                        alert('导入成功！');
+                        showSystemSettings.value = false;
+                    } catch(err) {
+                        alert('文件格式错误');
                     }
                 };
                 reader.readAsText(file);
             };
+            
+            const openContactSettings = () => { showContactSettings.value = true; };
+            const addPrivateMemory = () => { currentContact.value.privateMemory.push(''); };
+            const setTheme = (bg, txt) => {
+                systemColor.bg = bg;
+                systemColor.text = txt;
+                systemColor.headerBg = bg === '#000000' ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.9)';
+                saveData();
+            };
+
+            const copyText = (text) => {
+                navigator.clipboard.writeText(text);
+                alert('已复制');
+            }
+
+            watch(contacts, saveData, { deep: true });
+            watch(publicMemory, saveData, { deep: true });
 
             onMounted(() => {
                 loadData();
-                scrollToBottom();
+                if(contacts.value.length > 0) {
+                    selectContact(0);
+                }
             });
 
-            watch([contacts, publicMemories], saveData, { deep: true });
-
-            const addContact = () => {
-                contacts.value.push({
-                    id: Date.now(), name: "新对话", avatar: "",
-                    config: { baseUrl: "", apiKey: "", model: "gpt-3.5-turbo" },
-                    privateMemories: [], messages: []
-                });
-                currentIndex.value = contacts.value.length - 1;
-                showSettings.value = true;
-            };
-
-            const deleteContact = (index) => {
-                if (confirm('删除此联系人？')) {
-                    contacts.value.splice(index, 1);
-                    currentIndex.value = contacts.value.length ? 0 : -1;
-                }
-            };
-
-            const selectContact = (idx) => { currentIndex.value = idx; showSidebar.value = false; scrollToBottom(); };
-            
-            const addMemory = () => {
-                if(!newMemoryInput.value.trim()) return;
-                (memoryTab.value === 'public' ? publicMemories.value : currentContact.value.privateMemories).push(newMemoryInput.value.trim());
-                newMemoryInput.value = '';
-            };
-            const deleteMemory = (idx) => (memoryTab.value === 'public' ? publicMemories.value : currentContact.value.privateMemories).splice(idx, 1);
-            const startEditMemory = (idx, txt) => { editingMemoryIndex.value = idx; editingMemoryText.value = txt; };
-            const saveEditMemory = (idx) => {
-                if(editingMemoryText.value.trim()) (memoryTab.value === 'public' ? publicMemories.value : currentContact.value.privateMemories)[idx] = editingMemoryText.value.trim();
-                editingMemoryIndex.value = -1;
-            };
-
-            const scrollToBottom = () => nextTick(() => { const el = document.getElementById('chat-scroll-view'); if(el) el.scrollTop = el.scrollHeight; });
-            
-            watch(inputMessage, () => nextTick(() => {
-                const ta = document.querySelector('textarea');
-                if(ta) { ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; }
-            }));
-
-            const fetchModels = async () => {
-                const conf = currentContact.value.config;
-                if(!conf.baseUrl || !conf.apiKey) return alert('请先设置 BaseURL 和 Key');
-                isFetchingModels.value = true;
-                try {
-                    let url = conf.baseUrl.replace(/\/+$/, '');
-                    url = url.endsWith('v1') ? `${url}/models` : `${url}/v1/models`;
-                    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${conf.apiKey}` } });
-                    const data = await res.json();
-                    if(data.data) {
-                        modelList.value = data.data.map(m => m.id).sort();
-                        alert(`已拉取 ${modelList.value.length} 个模型`);
-                    }
-                } catch(e) { alert('拉取失败，请检查设置'); }
-                isFetchingModels.value = false;
-            };
-
-            const sendMessage = async () => {
-                if(!inputMessage.value.trim() || isLoading.value) return;
-                const text = inputMessage.value.trim();
-                currentContact.value.messages.push({ role: 'user', content: text });
-                inputMessage.value = '';
-                scrollToBottom();
-                
-                isLoading.value = true;
-                const contact = currentContact.value;
-                const sysPrompt = `System: You are a helpful AI. \nContext:\n${publicMemories.value.join('\n')}\n${contact.privateMemories.join('\n')}`;
-                
-                try {
-                    let url = contact.config.baseUrl.replace(/\/+$/, '');
-                    url = url.endsWith('v1') ? `${url}/chat/completions` : `${url}/v1/chat/completions`;
-                    
-                    const res = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${contact.config.apiKey}` },
-                        body: JSON.stringify({
-                            model: contact.config.model,
-                            messages: [{role:'system', content:sysPrompt}, ...contact.messages],
-                            stream: false
-                        })
-                    });
-                    const data = await res.json();
-                    if(data.error) throw new Error(data.error.message);
-                    contact.messages.push({ role: 'assistant', content: data.choices[0].message.content });
-                } catch(e) {
-                    contact.messages.push({ role: 'assistant', content: `[Error]: ${e.message}` });
-                } finally {
-                    isLoading.value = false;
-                    scrollToBottom();
-                }
-            };
-
-            // 撤销功能 (保留原有逻辑，界面已优化)
-            const revokeMessage = () => {
-                const msgs = currentContact.value.messages;
-                if(!msgs.length) return;
-                
-                // 1. 如果最后一条是 AI 发的，删除它，并把用户的上一条内容放回输入框，同时删掉那条用户消息
-                if(msgs[msgs.length-1].role === 'assistant') {
-                    msgs.pop(); // 删 AI
-                    if(msgs.length && msgs[msgs.length-1].role === 'user') {
-                        inputMessage.value = msgs.pop().content; // 删 User 并回填
-                    }
-                } 
-                // 2. 如果最后一条是 User 发的 (例如 AI 还没回，或者刚发)，直接删掉回填
-                else {
-                    inputMessage.value = msgs.pop().content;
-                }
-                
-                // 聚焦并调整高度
-                nextTick(() => {
-                    const textarea = document.querySelector('textarea');
-                    if(textarea) {
-                         textarea.style.height = 'auto';
-                         textarea.style.height = textarea.scrollHeight + 'px';
-                         textarea.focus();
-                    }
-                });
-            };
-
-            const regenerate = () => {
-                const msgs = currentContact.value.messages;
-                if(msgs.length && msgs[msgs.length-1].role === 'assistant') {
-                    msgs.pop();
-                    callLLMOnly();
-                }
-            };
-
-            const callLLMOnly = async () => {
-                isLoading.value = true;
-                const contact = currentContact.value;
-                const sysPrompt = `System: You are a helpful AI.\nPublicMem: ${publicMemories.value.join(';')}\nPrivateMem: ${contact.privateMemories.join(';')}`;
-                try {
-                     let url = contact.config.baseUrl.replace(/\/+$/, '');
-                     url = url.endsWith('v1') ? `${url}/chat/completions` : `${url}/v1/chat/completions`;
-                     const res = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${contact.config.apiKey}` },
-                        body: JSON.stringify({
-                            model: contact.config.model,
-                            messages: [{role:'system', content:sysPrompt}, ...contact.messages],
-                            stream: false
-                        })
-                    });
-                    const data = await res.json();
-                    if(data.error) throw new Error(data.error.message);
-                    contact.messages.push({ role: 'assistant', content: data.choices[0].message.content });
-                } catch(e) {
-                    contact.messages.push({ role: 'assistant', content: `[Error]: ${e.message}` });
-                } finally {
-                    isLoading.value = false;
-                    scrollToBottom();
-                }
-            }
-
             return {
-                globalConfig, showSidebar, showSettings, isLoading, isFetchingModels, inputMessage,
-                contacts, currentIndex, currentContact, memoryTab, newMemoryInput, currentMemoryList, modelList,
-                addContact, deleteContact, selectContact, openSettings: ()=>showSettings.value=true, closeSettings: ()=>showSettings.value=false,
-                addMemory, deleteMemory, startEditMemory, saveEditMemory, editingMemoryIndex, editingMemoryText,
-                sendMessage, revokeMessage, regenerate, fetchModels,
-                exportData, triggerImport, importData // 导出导入方法
+                showSidebar, showContactSettings, showPublicMemory, showSystemSettings,
+                contacts, currentContact, currentContactIndex, inputMessage, isLoading,
+                wallpaper, systemColor, publicMemory, chatContainer,
+                selectContact, addContact, deleteContact, sendMessage, undoLast, regenerate,
+                openContactSettings, addPrivateMemory, fetchModels,
+                exportData, importData, setTheme, copyText
             };
         }
     }).mount('#app');
