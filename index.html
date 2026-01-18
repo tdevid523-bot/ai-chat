@@ -42,10 +42,10 @@
             position: absolute;
             inset: 0;
             z-index: 1;
-            background-color: rgba(255, 255, 255, 0.95); /* 默认几乎不透明 */
+            background-color: rgba(255, 255, 255, 0.95); 
         }
         .has-wallpaper #chat-bg-overlay {
-            background-color: rgba(255, 255, 255, 0.6); /* 有壁纸时半透明 */
+            background-color: rgba(255, 255, 255, 0.6); 
         }
 
         /* 动画 */
@@ -107,6 +107,19 @@
                         <button @click="globalConfig.wallpaper = ''" class="text-gray-400 px-2"><i class="fas fa-times"></i></button>
                     </div>
                 </div>
+
+                <div class="border-t border-gray-200 pt-3">
+                    <label class="text-xs font-bold text-gray-500 block mb-2">数据备份与恢复</label>
+                    <div class="flex gap-2">
+                        <button @click="exportData" class="flex-1 bg-blue-100 text-blue-600 py-2 rounded-lg text-xs font-bold hover:bg-blue-200 transition-colors">
+                            <i class="fas fa-file-export"></i> 导出数据
+                        </button>
+                        <button @click="triggerImport" class="flex-1 bg-green-100 text-green-600 py-2 rounded-lg text-xs font-bold hover:bg-green-200 transition-colors">
+                            <i class="fas fa-file-import"></i> 导入数据
+                        </button>
+                        <input type="file" id="fileInput" @change="importData" class="hidden" accept=".json">
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -141,8 +154,11 @@
                              <div class="message-content px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm text-[15px] text-white bg-theme leading-6">
                                 {{ msg.content }}
                             </div>
+                            
                             <div v-if="index === currentContact.messages.length - 1 && !isLoading" class="text-xs text-gray-400 mt-1 mr-1">
-                                <button @click="revokeMessage" class="hover:text-red-500 transition-colors"><i class="fas fa-undo"></i> 撤回</button>
+                                <button @click="revokeMessage" class="flex items-center gap-1 hover:text-red-500 transition-colors cursor-pointer py-1">
+                                    <i class="fas fa-undo"></i> 撤回
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -304,14 +320,65 @@
             };
 
             const loadData = () => {
-                const data = JSON.parse(localStorage.getItem('ai_chat_data_v3'));
-                if (data) {
-                    if(data.contacts) contacts.value = data.contacts;
-                    if(data.publicMemories) publicMemories.value = data.publicMemories;
-                    if(data.globalConfig) globalConfig.value = { ...globalConfig.value, ...data.globalConfig };
-                }
+                try {
+                    const data = JSON.parse(localStorage.getItem('ai_chat_data_v3'));
+                    if (data) {
+                        if(data.contacts) contacts.value = data.contacts;
+                        if(data.publicMemories) publicMemories.value = data.publicMemories;
+                        if(data.globalConfig) globalConfig.value = { ...globalConfig.value, ...data.globalConfig };
+                    }
+                } catch(e) { console.error("加载数据失败", e); }
+                
                 if (contacts.value.length > 0) currentIndex.value = 0;
                 applyTheme();
+            };
+
+            // --- 新增：导出数据 ---
+            const exportData = () => {
+                const dataStr = JSON.stringify({
+                    contacts: contacts.value,
+                    publicMemories: publicMemories.value,
+                    globalConfig: globalConfig.value
+                }, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const date = new Date().toISOString().slice(0, 10);
+                a.download = `ai-chat-backup-${date}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            // --- 新增：导入数据 ---
+            const triggerImport = () => document.getElementById('fileInput').click();
+            
+            const importData = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        if (confirm('导入将覆盖当前所有数据，确定吗？')) {
+                            if(data.contacts) contacts.value = data.contacts;
+                            if(data.publicMemories) publicMemories.value = data.publicMemories || [];
+                            if(data.globalConfig) globalConfig.value = { ...globalConfig.value, ...data.globalConfig }; // 合并配置
+                            saveData();
+                            applyTheme();
+                            alert('导入成功！');
+                            if(contacts.value.length > 0) currentIndex.value = 0;
+                            // 重置 file input 以便下次能选同一个文件
+                            event.target.value = ''; 
+                        }
+                    } catch (err) {
+                        alert('文件格式错误或已损坏');
+                        console.error(err);
+                    }
+                };
+                reader.readAsText(file);
             };
 
             onMounted(() => {
@@ -411,15 +478,32 @@
                 }
             };
 
+            // 撤销功能 (保留原有逻辑，界面已优化)
             const revokeMessage = () => {
                 const msgs = currentContact.value.messages;
                 if(!msgs.length) return;
+                
+                // 1. 如果最后一条是 AI 发的，删除它，并把用户的上一条内容放回输入框，同时删掉那条用户消息
                 if(msgs[msgs.length-1].role === 'assistant') {
-                    msgs.pop();
-                    if(msgs.length && msgs[msgs.length-1].role === 'user') inputMessage.value = msgs.pop().content;
-                } else {
+                    msgs.pop(); // 删 AI
+                    if(msgs.length && msgs[msgs.length-1].role === 'user') {
+                        inputMessage.value = msgs.pop().content; // 删 User 并回填
+                    }
+                } 
+                // 2. 如果最后一条是 User 发的 (例如 AI 还没回，或者刚发)，直接删掉回填
+                else {
                     inputMessage.value = msgs.pop().content;
                 }
+                
+                // 聚焦并调整高度
+                nextTick(() => {
+                    const textarea = document.querySelector('textarea');
+                    if(textarea) {
+                         textarea.style.height = 'auto';
+                         textarea.style.height = textarea.scrollHeight + 'px';
+                         textarea.focus();
+                    }
+                });
             };
 
             const regenerate = () => {
@@ -462,7 +546,8 @@
                 contacts, currentIndex, currentContact, memoryTab, newMemoryInput, currentMemoryList, modelList,
                 addContact, deleteContact, selectContact, openSettings: ()=>showSettings.value=true, closeSettings: ()=>showSettings.value=false,
                 addMemory, deleteMemory, startEditMemory, saveEditMemory, editingMemoryIndex, editingMemoryText,
-                sendMessage, revokeMessage, regenerate, fetchModels
+                sendMessage, revokeMessage, regenerate, fetchModels,
+                exportData, triggerImport, importData // 导出导入方法
             };
         }
     }).mount('#app');
