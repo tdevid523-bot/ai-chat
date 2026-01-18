@@ -18,7 +18,11 @@
 <body>
     <div id="app" class="h-screen flex flex-col md:flex-row overflow-hidden max-w-7xl mx-auto bg-white shadow-xl">
         
-        <div :class="['md:w-64 bg-slate-800 text-white flex flex-col transition-all duration-300 z-20', showSidebar ? 'w-64 absolute h-full' : 'w-0 md:w-64 hidden md:flex']">
+        <div :class="['fixed inset-y-0 left-0 bg-slate-800 text-white flex flex-col transition-transform duration-300 z-50 h-full w-64 shadow-2xl', showSidebar ? 'translate-x-0' : '-translate-x-full']">
+            <button v-if="showSidebar" @click="showSidebar = false" class="absolute -right-8 top-4 text-slate-600 bg-white/80 p-1 rounded-r md:hidden">
+                <i class="fa-solid fa-times"></i>
+            </button>
+            
             <div class="p-4 border-b border-slate-700 flex justify-between items-center">
                 <h1 class="font-bold text-xl">通讯录</h1>
                 <button @click="openSettings" class="text-slate-400 hover:text-white"><i class="fa-solid fa-gear"></i></button>
@@ -129,7 +133,17 @@
                         <div class="space-y-2">
                             <input v-model="currentContact.config.baseUrl" placeholder="Base URL (例如 https://api.openai.com/v1)" class="w-full text-xs border rounded p-2">
                             <input v-model="currentContact.config.apiKey" type="password" placeholder="API Key (sk-...)" class="w-full text-xs border rounded p-2">
-                            <input v-model="currentContact.config.model" placeholder="模型名称 (例如 gpt-4)" class="w-full text-xs border rounded p-2">
+                            
+                            <div class="flex gap-1">
+                                <input v-model="currentContact.config.model" placeholder="模型名称 (例如 gpt-4)" class="flex-1 text-xs border rounded p-2" list="model-options">
+                                <button @click="fetchModels" class="bg-green-600 text-white px-3 rounded text-xs whitespace-nowrap hover:bg-green-700" title="拉取模型列表">
+                                    <i class="fa-solid fa-sync"></i>
+                                </button>
+                            </div>
+                            <datalist id="model-options">
+                                <option v-for="m in availableModels" :key="m" :value="m"></option>
+                            </datalist>
+
                         </div>
                     </div>
 
@@ -348,7 +362,33 @@
                     await fetchAIResponse(contact);
                 };
 
+                // --- 找回功能：拉取模型列表 ---
+                const availableModels = ref(['gpt-3.5-turbo', 'gpt-4']); // 初始默认
+                
+                const fetchModels = async () => {
+                    if (!currentContact.value) return;
+                    const cfg = currentContact.value.config;
+                    
+                    if (!cfg.apiKey) return alert('请先在此处填写 API Key');
+                    
+                    try {
+                        const res = await fetch(`${cfg.baseUrl.replace(/\/+$/, '')}/models`, {
+                            headers: { 'Authorization': `Bearer ${cfg.apiKey}` }
+                        });
+                        const data = await res.json();
+                        if (data.data) {
+                            availableModels.value = data.data.map(m => m.id).sort();
+                            alert(`成功拉取 ${availableModels.value.length} 个模型！请在输入框尝试输入，会有下拉提示。`);
+                        } else {
+                            alert('拉取成功但数据格式不匹配，请手动输入');
+                        }
+                    } catch (e) {
+                        alert('拉取失败，请检查 URL 和 API Key 是否正确');
+                    }
+                };
+
                 // --- 核心功能：请求 API (使用联系人独立配置 + 注入记忆) ---
+                
                 const fetchAIResponse = async (contact) => {
                     isLoading.value = true;
                     // 获取当前联系人的配置，如果没有则给默认值防止报错
@@ -429,12 +469,10 @@
                     showSidebar, showSettingsModal, showAddContactModal,
                     contacts, currentContact, currentContactIndex,
                     userInput, isLoading, newContact, chatContainer,
-                    // 新增的记忆库变量
-                    globalMemories, tempGlobalMem, tempPrivateMem,
-                    // 方法
-                    openContactSettings, saveContactConfig, addMemory, removeMemory, // 新方法
+                    globalMemories, tempGlobalMem, tempPrivateMem, availableModels, // 导出 availableModels
+                    openContactSettings, saveContactConfig, addMemory, removeMemory,
                     selectContact, addContact, confirmAddContact, deleteContact,
-                    sendMessage, retractMessage, regenerate
+                    sendMessage, retractMessage, regenerate, fetchModels // 导出 fetchModels
                 };
                 
             }
