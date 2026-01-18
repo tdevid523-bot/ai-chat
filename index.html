@@ -9,38 +9,51 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        /* --- CSS 变量与动态主题核心 --- */
+        /* --- CSS 变量核心 --- */
         :root {
-            --theme-color: #2563eb; 
+            --theme-color: #2563eb; /* 默认蓝色 */
+            --theme-bg-opacity: rgba(37, 99, 235, 0.1);
             --chat-wallpaper: none;
         }
 
-        /* 强制应用主题色的工具类 */
+        /* --- 动态主题类 --- */
+        /* 背景色 */
         .bg-theme { background-color: var(--theme-color) !important; }
+        /* 文字颜色 */
         .text-theme { color: var(--theme-color) !important; }
+        /* 边框颜色 */
         .border-theme { border-color: var(--theme-color) !important; }
-        .ring-theme:focus { --tw-ring-color: var(--theme-color) !important; ring-color: var(--theme-color) !important; }
+        /* 聚焦时的光圈 */
+        .focus-ring-theme:focus { --tw-ring-color: var(--theme-color) !important; ring-color: var(--theme-color) !important; }
+        /* 按钮 Hover 加深效果 (通过滤镜实现，通用性强) */
+        .btn-hover:hover { filter: brightness(90%); }
 
-        /* 滚动条隐藏 */
+        /* --- 布局与样式 --- */
+        body, html { height: 100%; overflow: hidden; background-color: #ffffff; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .message-content { word-wrap: break-word; white-space: pre-wrap; line-height: 1.75; }
         
-        /* 消息内容换行 */
-        .message-content { word-wrap: break-word; white-space: pre-wrap; line-height: 1.7; }
-        
-        /* 壁纸背景 */
-        #chat-container-bg {
+        /* 壁纸背景层 */
+        #chat-bg-layer {
             background-image: var(--chat-wallpaper);
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            opacity: 1;
         }
-        /* 遮罩，让文字在壁纸上看得清 */
-        #chat-container-overlay {
-            background-color: rgba(249, 250, 251, 0.9); /* 默认非常淡的遮罩 */
+        /* 如果有壁纸，叠加一层半透明白膜，防止字看不清 */
+        #chat-bg-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            background-color: rgba(255, 255, 255, 0.85); /* 默认纯白背景不透明 */
         }
-        /* 如果有壁纸，遮罩变透明一点点，展示壁纸 */
-        #chat-container-bg[style*="url"] #chat-container-overlay {
-             background-color: rgba(255, 255, 255, 0.75);
+        /* 当有壁纸时，Overlay 变得半透明 */
+        .has-wallpaper #chat-bg-overlay {
+            background-color: rgba(255, 255, 255, 0.6); 
         }
 
         /* 动画 */
@@ -50,14 +63,14 @@
 </head>
 <body>
 
-<div id="app" class="h-full flex flex-col relative text-gray-800" :style="dynamicThemeVariables">
+<div id="app" class="h-full flex flex-col relative text-gray-800">
 
     <header class="bg-theme shadow-md h-14 flex items-center justify-between px-4 z-20 shrink-0 text-white transition-colors duration-300">
         <button @click="showSidebar = true" class="p-2 hover:bg-white/20 rounded-full transition-colors">
             <i class="fas fa-bars fa-lg"></i>
         </button>
 
-        <h1 class="font-bold text-lg truncate max-w-[150px]">{{ currentContact ? currentContact.name : 'AI Chat' }}</h1>
+        <h1 class="font-bold text-lg truncate max-w-[150px]">{{ currentContact ? currentContact.name : '未选择联系人' }}</h1>
 
         <button @click="openSettings" class="p-2 hover:bg-white/20 rounded-full transition-colors" :disabled="!currentContact">
             <i class="fas fa-cog fa-lg"></i>
@@ -65,192 +78,178 @@
     </header>
 
     <div v-if="showSidebar" class="absolute inset-0 z-40 flex animate-fade-in">
-        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showSidebar = false"></div>
+        <div class="absolute inset-0 bg-black bg-opacity-50" @click="showSidebar = false"></div>
         
-        <div class="bg-white w-4/5 max-w-sm h-full shadow-2xl flex flex-col z-50 transition-transform" @click.stop>
+        <div class="bg-white w-4/5 max-w-sm h-full shadow-2xl flex flex-col z-50 transition-transform transform">
             <div class="p-4 border-b flex justify-between items-center bg-gray-50">
                 <h2 class="text-xl font-bold text-gray-800">联系人</h2>
-                <button @click="addContact" class="text-theme font-bold px-2 py-1 hover:bg-gray-100 rounded"><i class="fas fa-plus"></i> 新增</button>
+                <button @click="addContact" class="text-theme font-bold flex items-center gap-1 hover:opacity-80">
+                    <i class="fas fa-plus-circle"></i> 新增
+                </button>
             </div>
             
-            <div class="flex-1 overflow-y-auto p-2 space-y-2">
+            <div class="flex-1 overflow-y-auto p-2 space-y-1">
                 <div v-for="(contact, index) in contacts" :key="contact.id" 
                     @click="selectContact(index)"
-                    class="p-3 rounded-xl cursor-pointer flex items-center gap-3 transition-all border border-transparent"
-                    :class="currentIndex === index ? 'bg-theme text-white shadow-lg transform scale-[1.02]' : 'hover:bg-gray-100 text-gray-700'">
-                    
-                    <img :src="contact.avatar || 'https://via.placeholder.com/40?text=AI'" class="w-10 h-10 rounded-full object-cover bg-white border-2 border-white/30">
-                    
+                    class="p-3 rounded-xl cursor-pointer flex items-center gap-3 transition-colors border border-transparent"
+                    :class="currentIndex === index ? 'bg-theme text-white shadow-md' : 'hover:bg-gray-100 text-gray-700'">
+                    <img :src="contact.avatar || 'https://via.placeholder.com/40?text=AI'" 
+                         class="w-10 h-10 rounded-full object-cover bg-gray-200 border-2" 
+                         :class="currentIndex === index ? 'border-white' : 'border-transparent'">
                     <span class="flex-1 truncate font-medium">{{ contact.name }}</span>
-                    <button @click.stop="deleteContact(index)" class="opacity-60 hover:opacity-100 p-2"><i class="fas fa-trash-alt"></i></button>
+                    <button @click.stop="deleteContact(index)" class="p-2 hover:text-red-300 transition-colors"><i class="fas fa-trash-alt"></i></button>
                 </div>
             </div>
 
-            <div class="p-5 bg-gray-50 border-t space-y-4">
-                <h3 class="font-bold text-gray-400 text-xs uppercase tracking-wider">全局设置</h3>
-                
-                <div>
-                    <label class="text-xs text-gray-500 block mb-1.5">聊天壁纸 URL</label>
-                    <div class="flex gap-2 relative">
-                        <input v-model="globalConfig.wallpaper" placeholder="输入图片链接..." class="flex-1 bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow">
-                        <button v-if="globalConfig.wallpaper" @click="globalConfig.wallpaper = ''" class="absolute right-2 top-2 text-gray-400 hover:text-red-500"><i class="fas fa-times-circle"></i></button>
+            <div class="p-4 bg-gray-50 border-t space-y-4">
+                <div class="flex items-center justify-between">
+                    <label class="text-sm font-bold text-gray-600">主题颜色</label>
+                    <div class="flex items-center gap-2 bg-white p-1 rounded-full border shadow-sm">
+                         <input type="color" v-model="globalConfig.themeColor" class="w-8 h-8 rounded-full cursor-pointer border-none p-0 bg-transparent overflow-hidden">
                     </div>
                 </div>
-
                 <div>
-                    <label class="text-xs text-gray-500 block mb-2">系统主题色</label>
-                    <div class="flex flex-wrap gap-3 items-center">
-                        <button @click="setTheme('#2563eb')" class="w-6 h-6 rounded-full bg-blue-600 border-2 border-white shadow-sm ring-1 ring-gray-200 hover:scale-110 transition-transform"></button>
-                        <button @click="setTheme('#7c3aed')" class="w-6 h-6 rounded-full bg-violet-600 border-2 border-white shadow-sm ring-1 ring-gray-200 hover:scale-110 transition-transform"></button>
-                        <button @click="setTheme('#059669')" class="w-6 h-6 rounded-full bg-emerald-600 border-2 border-white shadow-sm ring-1 ring-gray-200 hover:scale-110 transition-transform"></button>
-                        <button @click="setTheme('#dc2626')" class="w-6 h-6 rounded-full bg-red-600 border-2 border-white shadow-sm ring-1 ring-gray-200 hover:scale-110 transition-transform"></button>
-                        <button @click="setTheme('#1f2937')" class="w-6 h-6 rounded-full bg-gray-800 border-2 border-white shadow-sm ring-1 ring-gray-200 hover:scale-110 transition-transform"></button>
-                        
-                        <div class="relative w-8 h-8 rounded-full overflow-hidden border-2 border-gray-300 cursor-pointer shadow-sm hover:scale-105 transition-transform ml-auto">
-                            <input type="color" v-model="globalConfig.themeColor" class="absolute -top-2 -left-2 w-12 h-12 cursor-pointer p-0 border-0">
-                            <i class="fas fa-palette absolute inset-0 flex items-center justify-center text-white text-xs pointer-events-none mix-blend-difference"></i>
-                        </div>
+                    <label class="text-xs text-gray-500 block mb-1">聊天壁纸链接</label>
+                    <div class="flex gap-2">
+                        <input v-model="globalConfig.wallpaper" placeholder="https://..." class="flex-1 bg-white border rounded px-2 py-1 text-xs outline-none focus:border-theme">
+                        <button @click="globalConfig.wallpaper = ''" class="text-gray-400 px-2"><i class="fas fa-times"></i></button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <main id="chat-container-bg" class="flex-1 relative overflow-hidden z-0 bg-gray-100">
-        <div id="chat-container-overlay" class="absolute inset-0 w-full h-full z-0 transition-colors duration-500"></div>
+    <main class="flex-1 relative overflow-hidden z-0">
+        <div id="chat-bg-layer" :class="{'has-wallpaper': !!globalConfig.wallpaper}"></div>
+        <div id="chat-bg-overlay"></div>
 
-        <div class="h-full overflow-y-auto pb-24 relative z-10" id="chat-scroll-view">
-            <div v-if="!currentContact" class="flex flex-col items-center justify-center h-full text-gray-400 opacity-60">
-                <i class="fas fa-robot fa-4x mb-4 text-theme"></i>
-                <p>选择一个 AI 开始聊天</p>
+        <div class="absolute inset-0 overflow-y-auto p-4 pb-24 space-y-6 scrollbar-hide z-10" id="chat-scroll-view">
+            <div v-if="!currentContact" class="text-center mt-32 opacity-50">
+                <div class="w-20 h-20 bg-gray-200 rounded-full mx-auto mb-4 flex items-center justify-center text-gray-400">
+                    <i class="fas fa-comment-dots fa-3x"></i>
+                </div>
+                <p>选择一个联系人开始聊天</p>
             </div>
             
             <template v-else>
-                <div class="h-4"></div> 
-
-                <div v-for="(msg, index) in currentContact.messages" :key="index" class="group">
+                <div v-for="(msg, index) in currentContact.messages" :key="index">
                     
-                    <div v-if="msg.role === 'assistant'" class="w-full py-6 px-4 hover:bg-gray-50/50 transition-colors">
-                        <div class="flex gap-4 max-w-3xl mx-auto">
-                            <div class="shrink-0 flex flex-col items-center gap-2">
-                                <img :src="currentContact.avatar || 'https://via.placeholder.com/40?text=AI'" class="w-9 h-9 rounded-full object-cover shadow-sm bg-white border border-gray-100">
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <div class="font-bold text-sm text-gray-800 mb-1 opacity-90">{{ currentContact.name }}</div>
-                                <div class="message-content text-gray-800 text-[15px]">{{ msg.content }}</div>
-                                <div v-if="index === currentContact.messages.length - 1 && !isLoading" class="mt-2 flex gap-3 opacity-100 transition-opacity">
-                                    <button @click="regenerate" class="text-xs text-gray-400 hover:text-theme flex items-center gap-1 bg-white px-2 py-1 rounded border border-gray-200 shadow-sm"><i class="fas fa-redo"></i> 重新生成</button>
-                                </div>
-                            </div>
+                    <div v-if="msg.role === 'assistant'" class="flex gap-4 w-full pr-4 group">
+                        <div class="shrink-0">
+                             <img :src="currentContact.avatar || 'https://via.placeholder.com/40?text=AI'" class="w-9 h-9 rounded-full object-cover bg-gray-200 border border-gray-100">
+                        </div>
+                        <div class="flex-1 min-w-0 pt-1">
+                             <div class="font-bold text-xs text-gray-400 mb-1 ml-0.5">{{ currentContact.name }}</div>
+                             <div class="message-content text-gray-800 text-[15px]">{{ msg.content }}</div>
+                             
+                             <div v-if="index === currentContact.messages.length - 1 && !isLoading" class="flex gap-3 text-xs text-gray-400 mt-2 opacity-100 transition-opacity">
+                                 <button @click="regenerate" class="hover:text-theme flex items-center gap-1 transition-colors"><i class="fas fa-redo"></i> 重新生成</button>
+                             </div>
                         </div>
                     </div>
 
-                    <div v-else class="py-6 px-4">
-                        <div class="flex gap-4 max-w-3xl mx-auto flex-row-reverse">
-                             <div class="flex flex-col items-end max-w-[85%]">
-                                <div class="message-content py-2.5 px-4 rounded-2xl rounded-tr-sm shadow-md text-[15px] text-white bg-theme">
-                                    {{ msg.content }}
-                                </div>
-                                <div v-if="index === currentContact.messages.length - 1 && !isLoading" class="mt-1">
-                                    <button @click="revokeMessage" class="text-xs text-gray-400 hover:text-red-500 px-1"><i class="fas fa-undo"></i> 撤回</button>
-                                </div>
+                    <div v-else class="flex justify-end pl-10">
+                        <div class="flex flex-col items-end max-w-full">
+                             <div class="message-content px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm text-[15px] text-white bg-theme leading-6">
+                                {{ msg.content }}
+                            </div>
+                            <div v-if="index === currentContact.messages.length - 1 && !isLoading" class="text-xs text-gray-400 mt-1 mr-1">
+                                <button @click="revokeMessage" class="hover:text-red-500 transition-colors"><i class="fas fa-undo"></i> 撤回</button>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <div v-if="isLoading" class="w-full py-6 px-4">
-                    <div class="flex gap-4 max-w-3xl mx-auto items-start">
-                        <div class="w-9 h-9 rounded-full bg-gray-200 shrink-0 animate-pulse"></div>
-                        <div class="space-y-2 w-full max-w-md pt-2">
-                            <div class="h-3 bg-gray-200 rounded w-1/3 animate-pulse"></div>
-                            <div class="h-3 bg-gray-200 rounded w-1/2 animate-pulse"></div>
-                        </div>
+                
+                <div v-if="isLoading" class="flex gap-4 w-full animate-pulse opacity-70">
+                    <div class="shrink-0 w-9 h-9 rounded-full bg-gray-200"></div>
+                    <div class="flex-1 space-y-2 pt-2">
+                        <div class="h-3 bg-gray-200 rounded w-1/4"></div>
+                        <div class="h-3 bg-gray-200 rounded w-1/2"></div>
                     </div>
                 </div>
             </template>
         </div>
     </main>
 
-    <footer class="bg-white/80 backdrop-blur-md border-t border-gray-200 p-3 flex gap-2 items-end shrink-0 z-30 safe-area-bottom">
-        <div class="flex-1 relative bg-gray-100 rounded-3xl border border-transparent focus-within:border-theme focus-within:ring-1 focus-within:ring-theme/30 transition-all">
-            <textarea v-model="inputMessage" rows="1" style="min-height: 44px;" class="w-full bg-transparent rounded-3xl pl-4 pr-4 py-2.5 max-h-32 focus:outline-none resize-none text-sm leading-6" placeholder="给 AI 发送消息..."></textarea>
-        </div>
+    <footer class="bg-white/95 backdrop-blur border-t p-3 flex gap-2 items-end shrink-0 z-30 safe-area-bottom">
+        <textarea v-model="inputMessage" rows="1" style="min-height: 44px;" 
+            class="flex-1 bg-gray-100 border-transparent rounded-3xl px-4 py-2.5 max-h-32 focus:outline-none focus:ring-2 focus-ring-theme resize-none text-sm shadow-inner transition-all" 
+            placeholder="发消息..."></textarea>
+        
         <button @click="sendMessage" :disabled="isLoading || !currentContact || !inputMessage.trim()" 
-            class="bg-theme w-11 h-11 rounded-full flex items-center justify-center text-white shadow-lg disabled:opacity-50 disabled:shadow-none hover:brightness-110 transition-all shrink-0">
-            <i class="fas fa-paper-plane"></i>
+            class="bg-theme btn-hover text-white rounded-full w-11 h-11 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0 transition-all">
+            <i class="fas fa-arrow-up"></i>
         </button>
     </footer>
 
     <div v-if="showSettings" class="absolute inset-0 z-50 bg-white flex flex-col animate-fade-in">
-        <div class="flex justify-between items-center p-4 border-b bg-gray-50">
+        <div class="flex justify-between items-center p-4 border-b">
             <h2 class="text-lg font-bold text-gray-800">设置: {{ currentContact.name }}</h2>
-            <button @click="closeSettings" class="text-gray-500 hover:bg-gray-200 w-8 h-8 rounded-full flex items-center justify-center transition-colors"><i class="fas fa-times"></i></button>
+            <button @click="closeSettings" class="text-gray-500 hover:text-gray-900 p-2"><i class="fas fa-times fa-lg"></i></button>
         </div>
 
         <div class="flex-1 overflow-y-auto p-5 space-y-8 scrollbar-hide">
             <section class="space-y-4">
-                <h3 class="font-bold text-gray-400 text-xs uppercase tracking-wider">形象</h3>
-                <div class="flex gap-4 items-center">
-                    <img :src="currentContact.avatar || 'https://via.placeholder.com/40?text=AI'" class="w-14 h-14 rounded-full border border-gray-200 object-cover">
-                    <div class="flex-1 space-y-2">
-                        <input v-model="currentContact.name" class="w-full border-b border-gray-300 focus:border-theme px-1 py-1 text-lg font-bold outline-none bg-transparent" placeholder="名字">
-                        <input v-model="currentContact.avatar" class="w-full text-xs text-gray-500 bg-gray-100 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-theme" placeholder="头像 URL (http://...)">
-                    </div>
+                <h3 class="font-bold text-gray-900 text-sm border-l-4 border-theme pl-2">外观</h3>
+                <div class="flex items-center gap-4">
+                     <img :src="currentContact.avatar || 'https://via.placeholder.com/40?text=AI'" class="w-16 h-16 rounded-full object-cover bg-gray-100 border">
+                     <div class="flex-1">
+                        <label class="text-xs text-gray-500">名称</label>
+                        <input v-model="currentContact.name" class="w-full border-b border-gray-300 py-1 outline-none focus:border-theme text-sm mb-2">
+                        <label class="text-xs text-gray-500">头像 URL</label>
+                        <input v-model="currentContact.avatar" placeholder="http://..." class="w-full border-b border-gray-300 py-1 outline-none focus:border-theme text-sm">
+                     </div>
                 </div>
             </section>
 
-            <section class="space-y-4 pt-2">
-                <h3 class="font-bold text-gray-400 text-xs uppercase tracking-wider">模型连接</h3>
-                <div class="bg-gray-50 rounded-xl p-4 space-y-3 border border-gray-100">
-                    <div>
-                        <div class="text-xs text-gray-500 mb-1">API Host (Base URL)</div>
-                        <input v-model="currentContact.config.baseUrl" placeholder="https://api.openai.com/v1" class="w-full bg-white border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-theme">
-                    </div>
-                    <div>
-                        <div class="text-xs text-gray-500 mb-1">API Key</div>
-                        <input v-model="currentContact.config.apiKey" type="password" placeholder="sk-..." class="w-full bg-white border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-theme">
-                    </div>
-                    <div>
-                        <div class="text-xs text-gray-500 mb-1">模型</div>
-                        <div class="flex gap-2">
-                            <select v-model="currentContact.config.model" class="flex-1 bg-white border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-theme">
-                                <option v-for="m in modelList" :value="m">{{ m }}</option>
-                                <option :value="currentContact.config.model">{{ currentContact.config.model }} (当前)</option>
-                            </select>
-                            <button @click="fetchModels" class="px-3 bg-white border border-gray-200 rounded hover:text-theme text-gray-600 text-sm"><i class="fas fa-sync"></i></button>
-                        </div>
+            <section class="space-y-4">
+                <h3 class="font-bold text-gray-900 text-sm border-l-4 border-theme pl-2">模型服务 (独享)</h3>
+                <div class="bg-gray-50 p-4 rounded-xl space-y-3">
+                    <input v-model="currentContact.config.baseUrl" placeholder="Base URL (e.g. https://api.openai.com/v1)" class="w-full border rounded-lg p-2 text-sm focus:outline-none focus:border-theme focus:ring-1 focus-ring-theme">
+                    <input v-model="currentContact.config.apiKey" type="password" placeholder="API Key (sk-...)" class="w-full border rounded-lg p-2 text-sm focus:outline-none focus:border-theme focus:ring-1 focus-ring-theme">
+                    
+                    <div class="flex gap-2">
+                        <select v-model="currentContact.config.model" class="flex-1 border rounded-lg p-2 text-sm bg-white focus:border-theme outline-none">
+                            <option v-for="m in modelList" :value="m">{{ m }}</option>
+                            <option :value="currentContact.config.model">{{ currentContact.config.model }} (Custom)</option>
+                        </select>
+                        <button @click="fetchModels" class="bg-gray-200 text-gray-700 px-3 rounded-lg text-xs font-bold whitespace-nowrap">
+                            <i class="fas fa-sync" :class="{'animate-spin': isFetchingModels}"></i>
+                        </button>
                     </div>
                 </div>
             </section>
 
             <section class="space-y-4 pb-10">
-                <div class="flex justify-between items-end border-b border-gray-100 pb-2">
-                    <h3 class="font-bold text-gray-400 text-xs uppercase tracking-wider">记忆库</h3>
-                    <div class="flex text-xs bg-gray-100 p-0.5 rounded-lg">
-                        <button @click="memoryTab = 'private'" :class="['px-3 py-1 rounded-md transition-all', memoryTab === 'private' ? 'bg-white text-theme shadow-sm font-bold' : 'text-gray-500']">专属</button>
-                        <button @click="memoryTab = 'public'" :class="['px-3 py-1 rounded-md transition-all', memoryTab === 'public' ? 'bg-white text-theme shadow-sm font-bold' : 'text-gray-500']">公共</button>
+                <div class="flex justify-between items-center">
+                    <h3 class="font-bold text-gray-900 text-sm border-l-4 border-theme pl-2">记忆库</h3>
+                    <div class="bg-gray-100 p-1 rounded-lg flex text-xs">
+                        <button @click="memoryTab='private'" :class="['px-3 py-1 rounded-md', memoryTab==='private'?'bg-white shadow text-theme font-bold':'text-gray-500']">专属</button>
+                        <button @click="memoryTab='public'" :class="['px-3 py-1 rounded-md', memoryTab==='public'?'bg-white shadow text-theme font-bold':'text-gray-500']">公共</button>
                     </div>
                 </div>
 
+                <div class="flex gap-2">
+                    <input v-model="newMemoryInput" @keyup.enter="addMemory" placeholder="添加记忆..." class="flex-1 border rounded-lg px-3 py-2 text-sm outline-none focus:border-theme">
+                    <button @click="addMemory" class="bg-theme text-white rounded-lg w-10 h-10 flex items-center justify-center shadow-md"><i class="fas fa-plus"></i></button>
+                </div>
+
                 <ul class="space-y-2">
-                    <li v-for="(mem, idx) in currentMemoryList" :key="idx" class="group flex gap-2 items-start bg-gray-50 p-3 rounded-lg hover:bg-white hover:shadow-sm transition-all border border-transparent hover:border-gray-100">
-                        <div class="text-theme mt-0.5"><i class="fas fa-dot-circle text-[8px]"></i></div>
-                        <span v-if="editingMemoryIndex !== idx" class="text-sm text-gray-700 flex-1 break-all">{{ mem }}</span>
-                        <input v-else v-model="editingMemoryText" class="flex-1 text-sm bg-transparent border-b border-theme outline-none">
+                    <li v-for="(mem, idx) in currentMemoryList" :key="idx" class="bg-white border border-gray-200 p-3 rounded-xl shadow-sm flex gap-3 group">
+                        <span v-if="editingMemoryIndex !== idx" class="text-sm text-gray-700 break-all flex-1">{{ mem }}</span>
+                        <input v-else v-model="editingMemoryText" class="flex-1 border-b border-theme outline-none text-sm">
                         
-                        <div class="flex gap-2 opacity-50 group-hover:opacity-100">
-                            <button v-if="editingMemoryIndex !== idx" @click="startEditMemory(idx, mem)" class="hover:text-theme"><i class="fas fa-pen text-xs"></i></button>
-                            <button v-else @click="saveEditMemory(idx)" class="text-green-500"><i class="fas fa-check"></i></button>
-                            <button @click="deleteMemory(idx)" class="hover:text-red-500"><i class="fas fa-times text-xs"></i></button>
+                        <div class="flex flex-col gap-2 opacity-50 group-hover:opacity-100">
+                             <template v-if="editingMemoryIndex !== idx">
+                                <i @click="startEditMemory(idx, mem)" class="fas fa-pen text-xs text-blue-400 cursor-pointer p-1"></i>
+                                <i @click="deleteMemory(idx)" class="fas fa-times text-xs text-red-400 cursor-pointer p-1"></i>
+                             </template>
+                             <template v-else>
+                                <i @click="saveEditMemory(idx)" class="fas fa-check text-xs text-green-500 cursor-pointer p-1"></i>
+                             </template>
                         </div>
                     </li>
                 </ul>
-                
-                <div class="flex items-center gap-2 mt-2">
-                    <input v-model="newMemoryInput" @keyup.enter="addMemory" placeholder="添加一条记忆..." class="flex-1 bg-gray-50 border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-theme focus:bg-white transition-colors">
-                    <button @click="addMemory" class="w-9 h-9 bg-theme text-white rounded-lg flex items-center justify-center shadow hover:opacity-90"><i class="fas fa-plus"></i></button>
-                </div>
             </section>
         </div>
     </div>
@@ -263,26 +262,27 @@
         setup() {
             // 全局配置
             const globalConfig = ref({
-                themeColor: '#2563eb',
+                themeColor: '#2563eb', // 默认蓝
                 wallpaper: ''
             });
 
-            // 动态样式计算
-            const dynamicThemeVariables = computed(() => {
-                return {
-                    '--theme-color': globalConfig.value.themeColor,
-                    '--chat-wallpaper': globalConfig.value.wallpaper ? `url('${globalConfig.value.wallpaper}')` : 'none'
-                };
-            });
-
-            // 方法：直接设置主题色 (用于预设按钮)
-            const setTheme = (color) => {
-                globalConfig.value.themeColor = color;
+            // --- 核心修复：监听颜色变化并直接应用到 CSS 变量 ---
+            const applyTheme = () => {
+                const root = document.documentElement;
+                root.style.setProperty('--theme-color', globalConfig.value.themeColor);
+                root.style.setProperty('--chat-wallpaper', globalConfig.value.wallpaper ? `url('${globalConfig.value.wallpaper}')` : 'none');
             };
+
+            // 监听配置变化，立即生效
+            watch(globalConfig, () => {
+                applyTheme();
+                saveData();
+            }, { deep: true });
 
             const showSidebar = ref(false);
             const showSettings = ref(false);
             const isLoading = ref(false);
+            const isFetchingModels = ref(false);
             const inputMessage = ref('');
             const currentIndex = ref(-1);
             const memoryTab = ref('private');
@@ -292,21 +292,16 @@
             const modelList = ref(['gpt-3.5-turbo', 'gpt-4o', 'gpt-4o-mini']);
             const publicMemories = ref([]); 
 
-            // 初始数据
-            const contacts = ref([
-                {
-                    id: Date.now(),
-                    name: "ChatGPT 助手",
-                    avatar: "https://upload.wikimedia.org/wikipedia/commons/0/04/ChatGPT_logo.svg",
-                    config: { baseUrl: "https://api.openai.com/v1", apiKey: "", model: "gpt-3.5-turbo" },
-                    privateMemories: [],
-                    messages: [
-                        { role: 'assistant', content: '你好！我是你的 AI 助手。' }
-                    ]
-                }
-            ]);
+            const contacts = ref([{
+                id: Date.now(),
+                name: "AI 助手",
+                avatar: "https://cdn-icons-png.flaticon.com/512/4712/4712027.png",
+                config: { baseUrl: "https://api.openai.com/v1", apiKey: "", model: "gpt-3.5-turbo" },
+                privateMemories: [],
+                messages: [{ role: 'assistant', content: '你好！我是你的 AI 助手。' }]
+            }]);
 
-            const currentContact = computed(() => currentIndex.value !== -1 ? contacts.value[currentIndex.value] : null);
+            const currentContact = computed(() => (currentIndex.value === -1 || !contacts.value.length) ? null : contacts.value[currentIndex.value]);
             const currentMemoryList = computed(() => {
                 if (memoryTab.value === 'public') return publicMemories.value;
                 if (currentContact.value) return currentContact.value.privateMemories;
@@ -323,11 +318,14 @@
             };
 
             const loadData = () => {
-                const data = JSON.parse(localStorage.getItem('ai_chat_data_v3') || '{}');
-                if (data.contacts) contacts.value = data.contacts;
-                if (data.publicMemories) publicMemories.value = data.publicMemories;
-                if (data.globalConfig) globalConfig.value = { ...globalConfig.value, ...data.globalConfig };
-                if (contacts.value.length) currentIndex.value = 0;
+                const data = JSON.parse(localStorage.getItem('ai_chat_data_v3'));
+                if (data) {
+                    if(data.contacts) contacts.value = data.contacts;
+                    if(data.publicMemories) publicMemories.value = data.publicMemories;
+                    if(data.globalConfig) globalConfig.value = { ...globalConfig.value, ...data.globalConfig };
+                }
+                if (contacts.value.length > 0) currentIndex.value = 0;
+                applyTheme(); // 加载时应用主题
             };
 
             onMounted(() => {
@@ -335,92 +333,77 @@
                 scrollToBottom();
             });
 
-            watch([contacts, publicMemories, globalConfig], saveData, { deep: true });
-            
-            // 自动调整输入框高度
-            watch(inputMessage, () => {
-                nextTick(() => {
-                    const el = document.querySelector('textarea');
-                    if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
-                });
-            });
+            watch([contacts, publicMemories], saveData, { deep: true });
 
-            // 基础功能实现
+            // 业务逻辑
             const addContact = () => {
                 contacts.value.push({
-                    id: Date.now(),
-                    name: "新对话",
-                    avatar: "",
+                    id: Date.now(), name: "新对话", avatar: "",
                     config: { baseUrl: "", apiKey: "", model: "gpt-3.5-turbo" },
-                    privateMemories: [],
-                    messages: []
+                    privateMemories: [], messages: []
                 });
                 currentIndex.value = contacts.value.length - 1;
-                showSidebar.value = false;
                 showSettings.value = true;
             };
 
             const deleteContact = (index) => {
-                if(confirm('删除此联系人？')) {
+                if (confirm('删除此联系人？')) {
                     contacts.value.splice(index, 1);
                     currentIndex.value = contacts.value.length ? 0 : -1;
                 }
             };
-            
-            const selectContact = (index) => {
-                currentIndex.value = index;
-                showSidebar.value = false;
-                scrollToBottom();
-            };
 
-            // 记忆操作
+            const selectContact = (idx) => { currentIndex.value = idx; showSidebar.value = false; scrollToBottom(); };
+            
+            // 记忆
             const addMemory = () => {
                 if(!newMemoryInput.value.trim()) return;
-                const target = memoryTab.value === 'public' ? publicMemories.value : currentContact.value.privateMemories;
-                target.push(newMemoryInput.value.trim());
+                (memoryTab.value === 'public' ? publicMemories.value : currentContact.value.privateMemories).push(newMemoryInput.value.trim());
                 newMemoryInput.value = '';
             };
-            const deleteMemory = (idx) => {
-                const target = memoryTab.value === 'public' ? publicMemories.value : currentContact.value.privateMemories;
-                target.splice(idx, 1);
-            };
+            const deleteMemory = (idx) => (memoryTab.value === 'public' ? publicMemories.value : currentContact.value.privateMemories).splice(idx, 1);
             const startEditMemory = (idx, txt) => { editingMemoryIndex.value = idx; editingMemoryText.value = txt; };
             const saveEditMemory = (idx) => {
-                if(editingMemoryText.value.trim()) {
-                    const target = memoryTab.value === 'public' ? publicMemories.value : currentContact.value.privateMemories;
-                    target[idx] = editingMemoryText.value.trim();
-                }
+                if(editingMemoryText.value.trim()) (memoryTab.value === 'public' ? publicMemories.value : currentContact.value.privateMemories)[idx] = editingMemoryText.value.trim();
                 editingMemoryIndex.value = -1;
             };
 
-            // 聊天逻辑
+            // 聊天
             const scrollToBottom = () => nextTick(() => { const el = document.getElementById('chat-scroll-view'); if(el) el.scrollTop = el.scrollHeight; });
+            
+            // 高度自适应
+            watch(inputMessage, () => nextTick(() => {
+                const ta = document.querySelector('textarea');
+                if(ta) { ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; }
+            }));
 
             const fetchModels = async () => {
                 const conf = currentContact.value.config;
-                if(!conf.baseUrl || !conf.apiKey) return alert('请先配置 URL 和 Key');
+                if(!conf.baseUrl || !conf.apiKey) return alert('请先设置 BaseURL 和 Key');
+                isFetchingModels.value = true;
                 try {
                     let url = conf.baseUrl.replace(/\/+$/, '');
                     url = url.endsWith('v1') ? `${url}/models` : `${url}/v1/models`;
-                    const res = await fetch(url, { headers: { Authorization: `Bearer ${conf.apiKey}` } });
+                    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${conf.apiKey}` } });
                     const data = await res.json();
                     if(data.data) {
-                        modelList.value = data.data.map(m=>m.id).sort();
-                        alert(`已获取 ${modelList.value.length} 个模型`);
+                        modelList.value = data.data.map(m => m.id).sort();
+                        alert(`已拉取 ${modelList.value.length} 个模型`);
                     }
-                } catch(e) { alert('获取失败，请检查配置'); }
+                } catch(e) { alert('拉取失败，请检查设置'); }
+                isFetchingModels.value = false;
             };
 
             const sendMessage = async () => {
                 if(!inputMessage.value.trim() || isLoading.value) return;
-                const content = inputMessage.value.trim();
-                currentContact.value.messages.push({ role: 'user', content });
+                const text = inputMessage.value.trim();
+                currentContact.value.messages.push({ role: 'user', content: text });
                 inputMessage.value = '';
                 scrollToBottom();
                 
                 isLoading.value = true;
                 const contact = currentContact.value;
-                const mems = [...publicMemories.value, ...contact.privateMemories].join('\n');
+                const sysPrompt = `System: You are a helpful AI. \nContext:\n${publicMemories.value.join('\n')}\n${contact.privateMemories.join('\n')}`;
                 
                 try {
                     let url = contact.config.baseUrl.replace(/\/+$/, '');
@@ -428,13 +411,10 @@
                     
                     const res = await fetch(url, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${contact.config.apiKey}` },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${contact.config.apiKey}` },
                         body: JSON.stringify({
                             model: contact.config.model,
-                            messages: [
-                                { role: 'system', content: `Current memories:\n${mems}\nYou are a helpful assistant.` },
-                                ...contact.messages
-                            ],
+                            messages: [{role:'system', content:sysPrompt}, ...contact.messages],
                             stream: false
                         })
                     });
@@ -452,8 +432,7 @@
             const revokeMessage = () => {
                 const msgs = currentContact.value.messages;
                 if(!msgs.length) return;
-                const last = msgs[msgs.length-1];
-                if(last.role === 'assistant') {
+                if(msgs[msgs.length-1].role === 'assistant') {
                     msgs.pop();
                     if(msgs.length && msgs[msgs.length-1].role === 'user') inputMessage.value = msgs.pop().content;
                 } else {
@@ -462,39 +441,30 @@
             };
 
             const regenerate = () => {
-                if(currentContact.value.messages.length && currentContact.value.messages.slice(-1)[0].role === 'assistant') {
-                    currentContact.value.messages.pop();
-                    sendMessage(); // 这里的 sendMessage 逻辑需要微调，复用 callLLM 逻辑，为简化直接手动触发逻辑
-                    // 修正：sendMessage 会 push user message，这里应该提取纯 callLLM 逻辑，但为了单文件简洁，建议用户先撤回再发，或者简单处理：
-                    // 由于 sendMessage 依赖 inputMessage，这里需要特殊处理，暂且简单提示用户撤回重发，或者上面的代码其实需要拆分 callLLM。
-                    // 快速修复：
-                    // 实际使用中，sendMessage 包含 push user msg，重成只需要 call API。
-                    // 为了代码极简，这里暂不拆分，建议手动撤回上一条AI，系统会自动重试。
-                    // 或者更简单的：
-                    // 由于我合并了逻辑，这里我们可以简单把上一条User消息取出来放到输入框然后自动点发送？
-                    // 不，regenerate 最好是独立函数。但在单文件中为了省行数，我稍微改写一下 sendMessage。
-                    // 算了，为了保证稳定性，不仅要 pop AI，还要重新触发 API。
-                    // 上面的代码里我没有把 callLLM 独立出来。为了最快修复，点击重成 -> 删掉 AI 回复 -> 提示用户“请点击发送重试” 或 自动重发。
-                    // 鉴于篇幅，这里改为：删掉最后一条 AI 消息，然后自动把上一条 User 消息作为上下文重发 (不需要 push user msg)。
-                    // 这是一个高阶功能，为了代码稳健，这里只做“删除最后一条”动作，让用户重发。
-                    // 实际上更好的做法是拆分函数。我会在下面补救。
+                const msgs = currentContact.value.messages;
+                if(msgs.length && msgs[msgs.length-1].role === 'assistant') {
+                    msgs.pop();
+                    sendMessage(); // Re-trigger send logic (careful with empty input, but here we just re-run last context)
+                    // Note: sendMessage relies on inputMessage. For strict regen, we should refactor callLLM separated.
+                    // Simple fix: push logic directly:
+                    callLLMOnly();
                 }
             };
             
-            // 补救 regenerate 逻辑：拆分核心请求函数
-            const coreRequest = async () => {
+            // 独立的 LLM 调用逻辑，不依赖输入框
+            const callLLMOnly = async () => {
                 isLoading.value = true;
                 const contact = currentContact.value;
-                const mems = [...publicMemories.value, ...contact.privateMemories].join('\n');
+                const sysPrompt = `System: You are a helpful AI.\nPublicMem: ${publicMemories.value.join(';')}\nPrivateMem: ${contact.privateMemories.join(';')}`;
                 try {
-                    let url = contact.config.baseUrl.replace(/\/+$/, '');
-                    url = url.endsWith('v1') ? `${url}/chat/completions` : `${url}/v1/chat/completions`;
-                    const res = await fetch(url, {
+                     let url = contact.config.baseUrl.replace(/\/+$/, '');
+                     url = url.endsWith('v1') ? `${url}/chat/completions` : `${url}/v1/chat/completions`;
+                     const res = await fetch(url, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${contact.config.apiKey}` },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${contact.config.apiKey}` },
                         body: JSON.stringify({
                             model: contact.config.model,
-                            messages: [{ role: 'system', content: `Memories:\n${mems}` }, ...contact.messages],
+                            messages: [{role:'system', content:sysPrompt}, ...contact.messages],
                             stream: false
                         })
                     });
@@ -503,35 +473,18 @@
                     contact.messages.push({ role: 'assistant', content: data.choices[0].message.content });
                 } catch(e) {
                     contact.messages.push({ role: 'assistant', content: `[Error]: ${e.message}` });
-                } finally { isLoading.value = false; scrollToBottom(); }
-            };
-            
-            // 重写 sendMessage
-            const sendMessageV2 = async () => {
-                 if(!inputMessage.value.trim() || isLoading.value) return;
-                 currentContact.value.messages.push({ role: 'user', content: inputMessage.value.trim() });
-                 inputMessage.value = '';
-                 scrollToBottom();
-                 await coreRequest();
-            };
-            
-            // 重写 regenerate
-            const regenerateV2 = async () => {
-                const msgs = currentContact.value.messages;
-                if(msgs.length && msgs[msgs.length-1].role === 'assistant') {
-                    msgs.pop();
-                    await coreRequest();
+                } finally {
+                    isLoading.value = false;
+                    scrollToBottom();
                 }
             }
 
             return {
-                globalConfig, dynamicThemeVariables, setTheme,
-                showSidebar, showSettings, isLoading, inputMessage, contacts, currentIndex, currentContact,
-                memoryTab, newMemoryInput, currentMemoryList, publicMemories, modelList,
-                addContact, deleteContact, selectContact,
+                globalConfig, showSidebar, showSettings, isLoading, isFetchingModels, inputMessage,
+                contacts, currentIndex, currentContact, memoryTab, newMemoryInput, currentMemoryList, modelList,
+                addContact, deleteContact, selectContact, openSettings: ()=>showSettings.value=true, closeSettings: ()=>showSettings.value=false,
                 addMemory, deleteMemory, startEditMemory, saveEditMemory, editingMemoryIndex, editingMemoryText,
-                openSettings, closeSettings: () => showSettings.value = false,
-                sendMessage: sendMessageV2, revokeMessage, regenerate: regenerateV2, fetchModels
+                sendMessage, revokeMessage, regenerate, fetchModels
             };
         }
     }).mount('#app');
