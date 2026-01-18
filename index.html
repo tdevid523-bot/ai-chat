@@ -49,9 +49,10 @@
            
                 <div class="h-14 border-b flex items-center justify-between px-4 bg-white shadow-sm z-10">
                 <div class="flex items-center">
-                    <button @click="showSidebar = true" class="mr-3 text-slate-600 hover:text-blue-600 transition">
+<button @click="showSidebar = !showSidebar" class="mr-3 text-slate-600 hover:text-blue-600 transition">
                         <i class="fa-solid fa-address-book text-xl"></i>
                     </button>
+                    
                     <h2 class="font-bold text-lg text-slate-800" v-if="currentContact">{{ currentContact.name }}</h2>
                     <h2 class="font-bold text-lg text-slate-800" v-else>请选择联系人</h2>
                 </div>
@@ -126,11 +127,23 @@
                     
                     <div class="bg-slate-50 p-3 rounded-lg border">
                         <h3 class="font-bold text-sm text-slate-700 mb-2"><i class="fa-solid fa-plug mr-1"></i>独立 API 设置</h3>
-                        <div class="space-y-2">
+                       <div class="space-y-2">
                             <input v-model="currentContact.config.baseUrl" placeholder="Base URL (例如 https://api.openai.com/v1)" class="w-full text-xs border rounded p-2">
                             <input v-model="currentContact.config.apiKey" type="password" placeholder="API Key (sk-...)" class="w-full text-xs border rounded p-2">
-                            <input v-model="currentContact.config.model" placeholder="模型名称 (例如 gpt-4)" class="w-full text-xs border rounded p-2">
+                            
+                            <div class="flex gap-1">
+                                <div class="relative flex-1">
+                                    <input v-model="currentContact.config.model" list="model-list" placeholder="输入或选择模型" class="w-full text-xs border rounded p-2">
+                                    <datalist id="model-list">
+                                        <option v-for="m in availableModels" :key="m" :value="m"></option>
+                                    </datalist>
+                                </div>
+                                <button @click="fetchModelsForContact" class="bg-green-600 text-white px-2 rounded text-xs whitespace-nowrap hover:bg-green-700">
+                                    <i class="fa-solid fa-sync"></i> 拉取
+                                </button>
+                            </div>
                         </div>
+                        
                     </div>
 
                     <div>
@@ -204,6 +217,8 @@
                 const userInput = ref('');
                 const isLoading = ref(false);
                 const currentContactIndex = ref(-1);
+
+                const availableModels = ref(['gpt-3.5-turbo', 'gpt-4']); // 默认模型列表
 
                 // 全局记忆库 (String Array)
                 const globalMemories = ref([]);
@@ -348,6 +363,30 @@
                     await fetchAIResponse(contact);
                 };
 
+                // --- 功能：拉取模型列表 (使用当前联系人的配置) ---
+                const fetchModelsForContact = async () => {
+                    const cfg = currentContact.value.config;
+                    if (!cfg.apiKey || !cfg.baseUrl) return alert('请先填写该联系人的 Base URL 和 API Key');
+                    
+                    try {
+                        const cleanUrl = cfg.baseUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/, ''); // 简单处理URL，尝试去掉尾部
+                        // 尝试请求 models 接口 (兼容 OpenAI 标准)
+                        const res = await fetch(`${cleanUrl}/models`, {
+                            headers: { 'Authorization': `Bearer ${cfg.apiKey}` }
+                        });
+                        const data = await res.json();
+                        
+                        if (data.data) {
+                            availableModels.value = data.data.map(m => m.id).sort();
+                            alert(`成功拉取 ${availableModels.value.length} 个模型，请点击输入框选择`);
+                        } else {
+                            throw new Error('返回数据格式不符');
+                        }
+                    } catch (e) {
+                        alert('拉取失败: ' + e.message + '\n请检查URL是否正确 (例如 https://api.openai.com/v1)');
+                    }
+                };
+
                 // --- 核心功能：请求 API (使用联系人独立配置 + 注入记忆) ---
                 const fetchAIResponse = async (contact) => {
                     isLoading.value = true;
@@ -429,10 +468,12 @@
                     showSidebar, showSettingsModal, showAddContactModal,
                     contacts, currentContact, currentContactIndex,
                     userInput, isLoading, newContact, chatContainer,
+                    availableModels, // <--- 加了这个
                     // 新增的记忆库变量
                     globalMemories, tempGlobalMem, tempPrivateMem,
                     // 方法
-                    openContactSettings, saveContactConfig, addMemory, removeMemory, // 新方法
+                    openContactSettings, saveContactConfig, addMemory, removeMemory, 
+                    fetchModelsForContact, // <--- 加了这个
                     selectContact, addContact, confirmAddContact, deleteContact,
                     sendMessage, retractMessage, regenerate
                 };
